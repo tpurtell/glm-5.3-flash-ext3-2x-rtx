@@ -1,0 +1,6 @@
+.git
+benchmarks
+*.log
+__pycache__
+*.pyc
+
