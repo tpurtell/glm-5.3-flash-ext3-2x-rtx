@@ -15,9 +15,15 @@ PORT="${PORT:-8001}"
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-2}"
 DECODE_CONTEXT_PARALLEL_SIZE="${DECODE_CONTEXT_PARALLEL_SIZE:-2}"
 DCP_COMM_BACKEND="${DCP_COMM_BACKEND:-ag_rs}"
-MAX_MODEL_LEN="${MAX_MODEL_LEN:-500000}"
-MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-8192}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-}"
+MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-16}"
+MTP_TOKENS="${MTP_TOKENS:-5}"
+USE_REPLAYSSM="${USE_REPLAYSSM:-1}"
+REPLAYSSM_BUFFER_LEN="${REPLAYSSM_BUFFER_LEN:-10}"
+LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-1}"
+ENABLE_PREFIX_CACHING="${ENABLE_PREFIX_CACHING:-1}"
+MAX_CUDAGRAPH_CAPTURE_SIZE="${MAX_CUDAGRAPH_CAPTURE_SIZE:-}"
 if [[ -v KV_CACHE_PROFILE ]]; then
   KV_CACHE_PROFILE="${KV_CACHE_PROFILE}"
 elif [[ "${KV_CACHE_DTYPE:-}" == fp8_ds_mla ]]; then
@@ -29,17 +35,23 @@ fi
 case "${KV_CACHE_PROFILE}" in
   nvfp4)
     PROFILE_KV_CACHE_DTYPE=nvfp4_ds_mla
-    PROFILE_GPU_MEMORY_UTILIZATION=0.965
+    PROFILE_GPU_MEMORY_UTILIZATION=0.950
+    PROFILE_MAX_MODEL_LEN=500000
+    PROFILE_MAX_NUM_BATCHED_TOKENS=2048
     ;;
   fp8)
     PROFILE_KV_CACHE_DTYPE=fp8_ds_mla
-    PROFILE_GPU_MEMORY_UTILIZATION=0.970
+    PROFILE_GPU_MEMORY_UTILIZATION=0.950
+    PROFILE_MAX_MODEL_LEN=360000
+    PROFILE_MAX_NUM_BATCHED_TOKENS=1024
     ;;
   *)
     echo "KV_CACHE_PROFILE must be nvfp4 or fp8; got: ${KV_CACHE_PROFILE}" >&2
     exit 2
     ;;
 esac
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-${PROFILE_MAX_MODEL_LEN}}"
+MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-${PROFILE_MAX_NUM_BATCHED_TOKENS}}"
 KV_CACHE_DTYPE="${KV_CACHE_DTYPE:-${PROFILE_KV_CACHE_DTYPE}}"
 if [[ "${KV_CACHE_DTYPE}" != "${PROFILE_KV_CACHE_DTYPE}" ]]; then
   echo "KV_CACHE_PROFILE=${KV_CACHE_PROFILE} requires KV_CACHE_DTYPE=${PROFILE_KV_CACHE_DTYPE}; got ${KV_CACHE_DTYPE}" >&2
@@ -72,6 +84,29 @@ if [[ $# -ne 0 ]]; then
   echo "Use environment variables for overrides; positional arguments are not supported." >&2
   exit 1
 fi
+if [[ ! "${MTP_TOKENS}" =~ ^[0-9]+$ ]]; then
+  echo "MTP_TOKENS must be a non-negative integer; got: ${MTP_TOKENS}" >&2
+  exit 2
+fi
+if [[ "${USE_REPLAYSSM}" != 0 && "${USE_REPLAYSSM}" != 1 ]]; then
+  echo "USE_REPLAYSSM must be 0 or 1; got: ${USE_REPLAYSSM}" >&2
+  exit 2
+fi
+if [[ ! "${REPLAYSSM_BUFFER_LEN}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "REPLAYSSM_BUFFER_LEN must be a positive integer; got: ${REPLAYSSM_BUFFER_LEN}" >&2
+  exit 2
+fi
+if [[ ! "${MAX_NUM_SEQS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "MAX_NUM_SEQS must be a positive integer; got: ${MAX_NUM_SEQS}" >&2
+  exit 2
+fi
+if [[ -z "${MAX_CUDAGRAPH_CAPTURE_SIZE}" ]]; then
+  MAX_CUDAGRAPH_CAPTURE_SIZE=$((MAX_NUM_SEQS * (MTP_TOKENS + 1)))
+fi
+if [[ ! "${MAX_CUDAGRAPH_CAPTURE_SIZE}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "MAX_CUDAGRAPH_CAPTURE_SIZE must be a positive integer; got: ${MAX_CUDAGRAPH_CAPTURE_SIZE}" >&2
+  exit 2
+fi
 if [[ ! -f "${MODEL_DIR}/config.json" ]]; then
   echo "Pinned HF snapshot is missing: ${MODEL_DIR}" >&2
   echo "Run ${SCRIPT_DIR}/download.sh first." >&2
@@ -102,6 +137,38 @@ mkdir -p "${CACHE_DIR}"
 CUSTOM_ALL_REDUCE_ARGS=()
 if [[ "${ENABLE_PCIE_ALLREDUCE}" == 0 ]]; then
   CUSTOM_ALL_REDUCE_ARGS+=(--disable-custom-all-reduce)
+fi
+
+SPECULATIVE_ARGS=()
+if (( MTP_TOKENS > 0 )); then
+  SPECULATIVE_ARGS+=(
+    --speculative-config
+    "{\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_TOKENS}}"
+  )
+  if [[ "${USE_REPLAYSSM}" == 1 ]]; then
+    SPECULATIVE_ARGS+=(
+      --use-replayssm
+      --replayssm-buffer-len "${REPLAYSSM_BUFFER_LEN}"
+    )
+  fi
+fi
+
+MODEL_MODE_ARGS=()
+if [[ "${LANGUAGE_MODEL_ONLY}" == 1 ]]; then
+  MODEL_MODE_ARGS+=(--language-model-only)
+elif [[ "${LANGUAGE_MODEL_ONLY}" != 0 ]]; then
+  echo "LANGUAGE_MODEL_ONLY must be 0 or 1; got: ${LANGUAGE_MODEL_ONLY}" >&2
+  exit 2
+fi
+
+CACHE_MODE_ARGS=()
+if [[ "${ENABLE_PREFIX_CACHING}" == 1 ]]; then
+  CACHE_MODE_ARGS+=(--enable-prefix-caching --mamba-cache-mode align)
+elif [[ "${ENABLE_PREFIX_CACHING}" == 0 ]]; then
+  CACHE_MODE_ARGS+=(--no-enable-prefix-caching --mamba-cache-mode none)
+else
+  echo "ENABLE_PREFIX_CACHING must be 0 or 1; got: ${ENABLE_PREFIX_CACHING}" >&2
+  exit 2
 fi
 
 # Mount the complete HF repository rather than only its symlinked snapshot so
@@ -141,6 +208,7 @@ docker run --detach \
   --env VLLM_EXL3_TRELLIS_BLOCK_M="${VLLM_EXL3_TRELLIS_BLOCK_M:-8}" \
   --env VLLM_EXL3_PREFILL_TRELLIS="${VLLM_EXL3_PREFILL_TRELLIS:-1}" \
   --env VLLM_EXL3_PREFILL_BLOCK_M="${VLLM_EXL3_PREFILL_BLOCK_M:-64}" \
+  --env VLLM_EXL3_PREFILL_CAPACITY="${VLLM_EXL3_PREFILL_CAPACITY:-1024}" \
   --env B12X_EXL3_BF16_EPILOGUE="${B12X_EXL3_BF16_EPILOGUE:-1}" \
   --env B12X_EXL3_BF16_GEMV="${B12X_EXL3_BF16_GEMV:-1}" \
   --env VLLM_B12X_GLM_H64_QUERY_PROJ="${VLLM_B12X_GLM_H64_QUERY_PROJ:-auto}" \
@@ -156,13 +224,16 @@ docker run --detach \
   --decode-context-parallel-size "${DECODE_CONTEXT_PARALLEL_SIZE}" \
   --dcp-comm-backend "${DCP_COMM_BACKEND}" \
   "${CUSTOM_ALL_REDUCE_ARGS[@]}" \
+  "${SPECULATIVE_ARGS[@]}" \
+  "${MODEL_MODE_ARGS[@]}" \
+  "${CACHE_MODE_ARGS[@]}" \
   --attention-backend "${ATTENTION_BACKEND}" \
   --max-model-len "${MAX_MODEL_LEN}" \
   --max-num-batched-tokens "${MAX_NUM_BATCHED_TOKENS}" \
   --max-num-seqs "${MAX_NUM_SEQS}" \
+  --max-cudagraph-capture-size "${MAX_CUDAGRAPH_CAPTURE_SIZE}" \
   --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
   --kv-cache-dtype "${KV_CACHE_DTYPE}" \
-  --enable-prefix-caching \
   --no-enable-flashinfer-autotune \
   --enable-auto-tool-choice \
   --tool-call-parser glm47 \
@@ -173,4 +244,14 @@ printf 'Started %s on http://127.0.0.1:%s/v1. Initial B12x/CuTe compilation can 
 printf 'Profile: %s, KV cache: %s, max length: %s, max sequences: %s, GPU memory utilization: %s\n' \
   "${KV_CACHE_PROFILE}" "${KV_CACHE_DTYPE}" "${MAX_MODEL_LEN}" "${MAX_NUM_SEQS}" \
   "${GPU_MEMORY_UTILIZATION}"
+if (( MTP_TOKENS > 0 )); then
+  if [[ "${USE_REPLAYSSM}" == 1 ]]; then
+    printf 'MTP: %s tokens with compact KDA ReplaySSM (buffer %s)\n' \
+      "${MTP_TOKENS}" "${REPLAYSSM_BUFFER_LEN}"
+  else
+    printf 'MTP: %s tokens with baseline full-state rollback\n' "${MTP_TOKENS}"
+  fi
+else
+  printf 'MTP: disabled\n'
+fi
 printf 'Follow startup: docker logs -f %s\n' "${CONTAINER_NAME}"

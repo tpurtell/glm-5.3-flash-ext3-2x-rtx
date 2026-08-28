@@ -57,6 +57,7 @@ COPY --from=exl3_source \
     /opt/vllm/vllm/model_executor/layers/mla_cache_format.py \
     /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/mla_cache_format.py
 COPY patches/port-exl3-glm53.py /tmp/port-exl3-glm53.py
+COPY patches/port-exl3-mtp-glm53.py /tmp/port-exl3-mtp-glm53.py
 COPY patches/port-b12x-glm53.py /tmp/port-b12x-glm53.py
 COPY patches/port-b12x-kpool-glm53.py /tmp/port-b12x-kpool-glm53.py
 COPY patches/b12x_dcp_topk.py \
@@ -73,7 +74,12 @@ COPY patches/port-b12x-pcie-glm53.py /tmp/port-b12x-pcie-glm53.py
 COPY patches/b12x_dcp_a2a.py \
     /usr/local/lib/python3.12/dist-packages/vllm/distributed/device_communicators/b12x_dcp_a2a.py
 COPY patches/port-b12x-dcp-a2a-glm53.py /tmp/port-b12x-dcp-a2a-glm53.py
+COPY patches/vllm-replayssm-spec.patch /tmp/vllm-replayssm-spec.patch
+COPY patches/port-replayssm-glm53.py /tmp/port-replayssm-glm53.py
+COPY patches/port-glm53-mtp-prefix-cache.py /tmp/port-glm53-mtp-prefix-cache.py
 RUN python3 /tmp/port-exl3-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-exl3-mtp-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
@@ -96,6 +102,18 @@ RUN python3 /tmp/port-exl3-glm53.py \
  && python3 /tmp/port-b12x-dcp-a2a-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm
 
+# Port the current upstream ReplaySSM series onto the exact day-zero vLLM
+# commit, then add compact rollback for GLM's vector-gated KDA recurrence. The
+# patch is intentionally applied after the local EXL3/B12x ports; this is the
+# ordering qualified by the clean-image compatibility test.
+RUN cd /usr/local/lib/python3.12/dist-packages \
+ && patch --batch --forward -p1 < /tmp/vllm-replayssm-spec.patch \
+ && python3 /tmp/port-replayssm-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-glm53-mtp-prefix-cache.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 -m compileall -q /usr/local/lib/python3.12/dist-packages/vllm
+
 ENV PYTHONPATH=/opt/b12x:/usr/local/lib/python3.12/dist-packages \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -105,6 +123,7 @@ ENV PYTHONPATH=/opt/b12x:/usr/local/lib/python3.12/dist-packages \
     VLLM_EXL3_TRELLIS_BLOCK_M=8 \
     VLLM_EXL3_PREFILL_TRELLIS=1 \
     VLLM_EXL3_PREFILL_BLOCK_M=64 \
+    VLLM_EXL3_PREFILL_CAPACITY=1024 \
     VLLM_B12X_GLM_H64_QUERY_PROJ=auto \
     VLLM_USE_B12X_MHC=auto \
     VLLM_USE_B12X_SPARSE_INDEXER=1
@@ -126,6 +145,13 @@ from b12x.gemm import mla_query_projection
 from vllm.model_executor.layers.sparse_attn_indexer import SparseAttnIndexer
 from vllm.model_executor.layers.quantization import get_quantization_config
 from vllm.model_executor.layers.quantization.exl3 import Exl3Config
+from vllm.model_executor.layers.mamba.mamba_utils import MambaStateShapeCalculator
+from vllm.model_executor.models.interfaces import supports_replayssm
+from vllm.models.glm5next.nvidia.model import Glm5NextForConditionalGeneration
+from vllm.third_party.flash_linear_attention.ops.kda_replayssm_spec_decode import (
+    kda_replayssm_spec_decode,
+    materialize_kda_replayssm_state,
+)
 from vllm.config.cache import CacheConfig
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE
 from vllm.v1.kv_cache_interface import MLAAttentionSpec
@@ -155,11 +181,31 @@ config._configure_standard_fused_moe(SimpleNamespace(model_type="glm5_next"))
 config._configure_base_quantization(SimpleNamespace(model_type="glm5_next"))
 
 assert get_quantization_config("exl3") is Exl3Config
+assert supports_replayssm(Glm5NextForConditionalGeneration)
+assert MambaStateShapeCalculator.replayssm_spec_ring_len(10, 5) == 16
+assert MambaStateShapeCalculator.replayssm_spec_ring_len(16, 5) == 32
+assert callable(kda_replayssm_spec_decode)
+assert callable(materialize_kda_replayssm_state)
 assert config.standard_fused_moe
 assert config._base_quant_config is None
 assert config._moe_prefix_is_exl3(
     "language_model.model.layers.3.mlp.experts"
 )
+assert config._moe_prefix_is_exl3("model.layers.3.mlp.experts")
+assert config._storage_entry(
+    "model.layers.3.mtp_block.mlp.experts.0.gate_proj"
+) is not None
+assert config._moe_prefix_is_exl3(
+    "model.layers.3.mtp_block.mlp.experts.routed_experts"
+)
+assert "is_standard_mtp" in Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
+    "quantization/exl3.py"
+).read_text()
+assert "scheduler_config.max_num_seqs" in Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
+    "quantization/exl3.py"
+).read_text()
 assert callable(fused_moe.plan_weights)
 assert callable(fused_moe.prepare_weights)
 assert callable(fused_moe.plan)

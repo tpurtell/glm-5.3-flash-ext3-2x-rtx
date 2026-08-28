@@ -122,6 +122,150 @@ def main(root: Path) -> None:
     )
     replace_once(
         exl3,
+        "        candidates = [prefix]\n",
+        "        candidates = [prefix]\n"
+        '        mtp_checkpoint_prefix = prefix.replace(".mtp_block.", ".", 1)\n'
+        '        mtp_checkpoint_prefix = mtp_checkpoint_prefix.replace(\n'
+        '            ".routed_experts.", ".", 1\n'
+        "        )\n"
+        "        if mtp_checkpoint_prefix != prefix:\n"
+        "            candidates.append(mtp_checkpoint_prefix)\n"
+        '            if mtp_checkpoint_prefix.startswith("model."):\n'
+        "                candidates.append(\n"
+        '                    "model.language_model."\n'
+        '                    + mtp_checkpoint_prefix.removeprefix("model.")\n'
+        "                )\n",
+        "resolve GLM draft-layer prefixes to checkpoint EXL3 metadata",
+    )
+    replace_once(
+        exl3,
+        '        if prefix.startswith("model."):\n'
+        '            candidates.append(prefix.removeprefix("model."))\n',
+        '        if prefix.startswith("model."):\n'
+        '            text_prefix = prefix.removeprefix("model.")\n'
+        "            candidates.extend(\n"
+        "                (text_prefix, f\"model.language_model.{text_prefix}\")\n"
+        "            )\n",
+        "resolve pre-wrapper GLM text prefixes during draft construction",
+    )
+    replace_once(
+        exl3,
+        "        if isinstance(layer, RoutedExperts):\n"
+        "            if not self._moe_prefix_is_exl3(prefix, layer):\n",
+        "        if isinstance(layer, RoutedExperts):\n"
+        "            is_standard_mtp = (\n"
+        "                self.standard_fused_moe and \".mtp_block.\" in prefix\n"
+        "            )\n"
+        "            if (\n"
+        "                not is_standard_mtp\n"
+        "                and not self._moe_prefix_is_exl3(prefix, layer)\n"
+        "            ):\n",
+        "instantiate standard GLM MTP experts as EXL3 before weight mapping",
+    )
+    replace_once(
+        exl3,
+        "            layer.exl3_max_num_batched_tokens = int(\n"
+        "                scheduler_config.max_num_batched_tokens\n"
+        "            )\n"
+        "            # Stamp the layer role while the model-construction config context\n",
+        "            is_draft = (\n"
+        '                getattr(vllm_config.model_config, "runner_type", None) == "draft"\n'
+        "            )\n"
+        "            # A standard MTP forward has one row per live request, not one\n"
+        "            # row per target-prefill token. Planning its EXL3 prefill arena\n"
+        "            # for max_num_batched_tokens duplicated the target's ~GiB-scale\n"
+        "            # arena even though that capacity was unreachable. Keep its\n"
+        "            # independently captured runtime, but size it to concurrency.\n"
+        "            layer.exl3_max_num_batched_tokens = int(\n"
+        "                scheduler_config.max_num_seqs\n"
+        "                if is_draft\n"
+        "                else scheduler_config.max_num_batched_tokens\n"
+        "            )\n"
+        "            # Stamp the layer role while the model-construction config context\n",
+        "size GLM MTP EXL3 arena to request concurrency",
+    )
+    replace_once(
+        exl3,
+        "        max_batched_tokens = int(layer.exl3_max_num_batched_tokens)\n"
+        "        prefill_plan_enabled = prefill_trellis and max_batched_tokens > max_trellis_m\n",
+        "        scheduler_max_batched_tokens = int(layer.exl3_max_num_batched_tokens)\n"
+        "        # B12x prefill scratch grows with the planned token capacity. A\n"
+        "        # single scheduler batch does not need one monolithic MoE launch:\n"
+        "        # expert routing is token-independent, so larger batches can be\n"
+        "        # tiled through a much smaller persistent arena without changing\n"
+        "        # results. This is especially valuable on large EXL3 models, where\n"
+        "        # an 8192-row plan otherwise reserves roughly 1.8 GiB per GPU.\n"
+        "        prefill_capacity = _positive_env_int(\n"
+        "            \"VLLM_EXL3_PREFILL_CAPACITY\", 1024\n"
+        "        )\n"
+        "        max_batched_tokens = min(\n"
+        "            scheduler_max_batched_tokens, prefill_capacity\n"
+        "        )\n"
+        "        prefill_plan_enabled = prefill_trellis and max_batched_tokens > max_trellis_m\n",
+        "bound persistent B12x prefill arena capacity",
+    )
+    replace_once(
+        exl3,
+        "        if runtime[\"prefill_plan\"] is not None and m > runtime[\"max_trellis_m\"]:\n"
+        "            if m > runtime[\"max_batched_tokens\"]:\n"
+        "                raise ValueError(\n"
+        "                    \"EXL3 batch exceeds its planned capacity: \"\n"
+        "                    f\"m={m}, capacity={runtime['max_batched_tokens']}\"\n"
+        "                )\n"
+        "            binding = runtime[\"api\"].bind(\n"
+        "                runtime[\"prefill_plan\"],\n"
+        "                scratch=runtime[\"prefill_scratch\"],\n"
+        "                a=x,\n"
+        "                experts=layer.exl3_trellis_weights,\n"
+        "                topk_weights=topk_weights,\n"
+        "                topk_ids=topk_ids,\n"
+        "            )\n"
+        "            output = runtime[\"api\"].run(binding=binding)\n"
+        "            return output.to(x.dtype)\n",
+        "        if runtime[\"prefill_plan\"] is not None and m > runtime[\"max_trellis_m\"]:\n"
+        "            capacity = int(runtime[\"max_batched_tokens\"])\n"
+        "            if m <= capacity:\n"
+        "                binding = runtime[\"api\"].bind(\n"
+        "                    runtime[\"prefill_plan\"],\n"
+        "                    scratch=runtime[\"prefill_scratch\"],\n"
+        "                    a=x,\n"
+        "                    experts=layer.exl3_trellis_weights,\n"
+        "                    topk_weights=topk_weights,\n"
+        "                    topk_ids=topk_ids,\n"
+        "                )\n"
+        "                output = runtime[\"api\"].run(binding=binding)\n"
+        "                return output.to(x.dtype)\n"
+        "\n"
+        "            # Tile a large scheduler prefill through the bounded arena.\n"
+        "            # Each route is independent, so concatenating the per-tile\n"
+        "            # MoE outputs is exactly the monolithic operation.\n"
+        "            output = torch.empty(\n"
+        "                (m, x.shape[1]), dtype=x.dtype, device=x.device\n"
+        "            )\n"
+        "            for start in range(0, m, capacity):\n"
+        "                end = min(start + capacity, m)\n"
+        "                current_m = end - start\n"
+        "                if current_m <= runtime[\"max_trellis_m\"]:\n"
+        "                    plan = runtime[\"trellis_plan\"]\n"
+        "                    scratch = runtime[\"trellis_scratch\"]\n"
+        "                else:\n"
+        "                    plan = runtime[\"prefill_plan\"]\n"
+        "                    scratch = runtime[\"prefill_scratch\"]\n"
+        "                binding = runtime[\"api\"].bind(\n"
+        "                    plan,\n"
+        "                    scratch=scratch,\n"
+        "                    a=x[start:end],\n"
+        "                    experts=layer.exl3_trellis_weights,\n"
+        "                    topk_weights=topk_weights[start:end],\n"
+        "                    topk_ids=topk_ids[start:end],\n"
+        "                )\n"
+        "                tile_output = runtime[\"api\"].run(binding=binding)\n"
+        "                output[start:end].copy_(tile_output)\n"
+        "            return output\n",
+        "tile large EXL3 prefills through bounded B12x arena",
+    )
+    replace_once(
+        exl3,
         "\n\nclass Exl3Config(QuantizationConfig):\n",
         "\n\nclass _B12xSmallNBF16Method(UnquantizedLinearMethod):\n"
         '    """Route narrow native-BF16 GLM linears through B12x at decode."""\n\n'

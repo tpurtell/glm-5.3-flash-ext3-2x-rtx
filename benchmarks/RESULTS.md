@@ -1,32 +1,55 @@
 # Qualification results
 
-Measured 2026-08-28 on two NVIDIA RTX PRO 6000 Blackwell Workstation Edition GPUs (SM120, 97,887 MiB each), driver 595.71.05. Runtime defaults were NVFP4 MLA, TP2 + DCP2, concurrency 16, 500K max length, and an 8,192-token batch cap.
+Measured 2026-08-28 on two NVIDIA RTX PRO 6000 Blackwell Workstation Edition GPUs (SM120, 97,887 MiB each), driver 595.71.05. Release defaults were MTP5 with compact KDA ReplaySSM, NVFP4 MLA, TP2 + DCP2, concurrency 16, a 500K max length, a 2,048-token batch cap, and GPU memory utilization 0.950.
 
 ## Capacity and correctness
 
 | Check | Result |
 |---|---|
-| KV cache allocation | 600,000 logical tokens; 1.20× one 500K request |
-| Exact 128,000-token prompt | pass; 18 generated tokens; 24.580 s |
-| Near-limit 499,000-token prompt | pass; 64 generated tokens; 80.099 s |
-| Concurrency | 16/16 simultaneous 8-token chats returned HTTP 200; 1.701 s wall time |
-| FP8 MLA option | 523,529-token pool at utilization 0.970; 500K configuration passed |
-| Seven content types | 6/7 pass in 18.264 s; JSON miss was valid JSON wrapped in a fence |
+| Release KV cache allocation | 537,500 logical tokens; 1.075× one 500K request |
+| FP8 profile allocation | 514,285 logical tokens; 1.43× one 360K request |
+| MTP-off NVFP4 allocation | 1,560,000 logical tokens at the same 500K/0.950 settings |
+| Compact rollback gain | 51,200 → 107,054 tokens (2.09×) under the same 8K-profile control |
+| Exact 128,000-token prompt | pass; needle recovered; 92 generated tokens; 34.114 s |
+| 500K configuration | pass at 0.950; one full-length request fits with 37,500 tokens spare |
+| Aligned prefix reuse | pass; repeated 45,006-token prompt reused 15,360 tokens |
+| Concurrency | C16 decode completed 16 × 128 output tokens in every measured run |
+| Seven content types | 6/7 pass in 11.736 s; JSON miss was correct JSON wrapped in a fence |
 | Tool-use suite | 90/100; 124/138 points; 59 pass, 6 partial, 4 fail; 0 transport errors |
 
 The tool suite used 69 scenarios, 52 tools, parallelism 4, thinking enabled, and a 900-second timeout. Its two safety-gate warnings were partial prompt-injection leakage (without executing it) and an empty required web-search query. These are model-behavior results, not hidden as serving failures.
 
-The seven-content raw summary is in [seven-content-types.jsonl](seven-content-types.jsonl).
+The strict JSON prompt and expected values were simple: `src/cache.rs`, `replace`, lines 41–47, plus a non-empty rationale. The model returned exactly those values but enclosed the object in a `json` fence, so the strict bare-JSON contract correctly remains a miss. Repeating the request with OpenAI `response_format={"type":"json_object"}` returned bare parseable JSON. This is a presentation-level model miss, not a transport, quantization, or parser failure.
 
-## Throughput
+Raw content results are in [seven-content-types-mtp5-replayssm.jsonl](seven-content-types-mtp5-replayssm.jsonl).
 
-Each row is the mean of three `pp2048 tg128` runs at concurrency 16.
+## Prefill throughput
 
-| Existing depth | Prompt tok/s | Generation tok/s | TTFT | Total |
+Each point is C1 with an exact-length, unique prompt, so aligned prefix caching cannot reuse an earlier block. Timing spans client request to first streamed token, including server tokenization and the one-token handoff. Every depth is warmed separately, then measured three times. Rates and TTFTs below are medians.
+
+| Prompt length | NVFP4 tok/s | NVFP4 TTFT | FP8 tok/s | FP8 TTFT |
 |---:|---:|---:|---:|---:|
-| 0 | 2,791 | 147.3 | 7,668 ms | 12,437 ms |
-| 4,096 | 4,202 | 80.3 | 12,906 ms | 20,012 ms |
-| 8,192 | 4,451 | 53.5 | 19,236 ms | 30,188 ms |
+| 2,048 | 4,494 | 0.456 s | 4,214 | 0.486 s |
+| 8,192 | 4,593 | 1.784 s | 4,294 | 1.908 s |
+| 32,768 | 4,641 | 7.060 s | 4,155 | 7.887 s |
+| 65,536 | 4,366 | 15.009 s | 4,078 | 16.069 s |
+| 128,000 | 4,270 | 29.974 s | 4,045 | 31.643 s |
+
+NVFP4 used the release 500K/2K profile; FP8 used its qualified 360K/1K profile. Both used MTP5, DCP2, C16 scheduler capacity, and memory utilization 0.950. Raw reports: [NVFP4 prefill](nvfp4-mtp5-prefill-c1.json) and [FP8 prefill](fp8-mtp5-prefill-c1.json).
+
+## Pure decode throughput
+
+Pure decode uses one depth-0 prompt with `n` parallel continuations. Timing spans first to last streamed token, excluding TTFT; every sequence emits exactly 128 tokens. Two full 128-token requests warm each concurrency first, covering lazy JIT shapes, and one sampling seed is fixed across repeats so MTP acceptance is comparable. Values are three-run medians with observed ranges.
+
+| Cache | Speculation | C1 aggregate tok/s | C16 aggregate tok/s |
+|---|---:|---:|---:|
+| NVFP4 | MTP5 | 98.4 (96.5–104.5) | 276.5 (267.9–284.9) |
+| NVFP4 | off | 71.0 (71.0–71.1) | 543.3 (526.1–547.4) |
+| FP8 | MTP5 | 96.8 (94.9–102.8) | 174.8 (161.6–179.4) |
+
+On this unconstrained free-form continuation, MTP5 raises C1 NVFP4 decode by 39% but loses at saturated C16 because five draft passes cost more than the accepted tokens recover. Agent, code, and structured workloads can accept much deeper drafts; MTP performance is inherently workload-sensitive. FP8 changes the target trajectory enough to change draft acceptance too, so its decode result is not expected to scale only with cache bandwidth.
+
+Raw reports: [NVFP4 MTP5](nvfp4-mtp5-decode-c1-c16.json), [NVFP4 MTP-off](nvfp4-mtp0-decode-c1-c16.json), and [FP8 MTP5](fp8-mtp5-decode-c1-c16.json). Reproduce them with `scripts/benchmark-prefill.py` and `scripts/benchmark-decode.py`.
 
 ## B12x DCP A2A admission
 
