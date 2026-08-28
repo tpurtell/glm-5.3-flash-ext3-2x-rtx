@@ -110,6 +110,11 @@ def main() -> None:
     parser.add_argument("--model", required=True)
     parser.add_argument("--profile", required=True, choices=["nvfp4", "fp8"])
     parser.add_argument("--mtp-tokens", type=int, required=True)
+    parser.add_argument(
+        "--mtp-policy",
+        choices=["off", "static", "adaptive"],
+        default="static",
+    )
     parser.add_argument("--concurrency", nargs="+", type=int, default=[1, 16])
     parser.add_argument("--output-tokens", type=int, default=128)
     parser.add_argument(
@@ -147,7 +152,8 @@ def main() -> None:
             )
             runs.append(result)
             print(
-                f"{args.profile} MTP{args.mtp_tokens} C{concurrency} "
+                f"{args.profile} {args.mtp_policy} MTP{args.mtp_tokens} "
+                f"C{concurrency} "
                 f"run {run + 1}/{args.runs}: "
                 f"{result['decode_tokens_per_second']:.2f} tok/s",
                 flush=True,
@@ -175,6 +181,7 @@ def main() -> None:
         "model": args.model,
         "kv_cache_profile": args.profile,
         "mtp_tokens": args.mtp_tokens,
+        "mtp_policy": args.mtp_policy,
         "output_tokens_per_sequence": args.output_tokens,
         "warmup_runs_per_point": args.warmup_runs,
         "runs_per_point": args.runs,

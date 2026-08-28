@@ -75,8 +75,12 @@ COPY patches/b12x_dcp_a2a.py \
     /usr/local/lib/python3.12/dist-packages/vllm/distributed/device_communicators/b12x_dcp_a2a.py
 COPY patches/port-b12x-dcp-a2a-glm53.py /tmp/port-b12x-dcp-a2a-glm53.py
 COPY patches/vllm-replayssm-spec.patch /tmp/vllm-replayssm-spec.patch
+COPY patches/vllm-dynamic-sd-cudagraph.patch /tmp/vllm-dynamic-sd-cudagraph.patch
 COPY patches/port-replayssm-glm53.py /tmp/port-replayssm-glm53.py
 COPY patches/port-glm53-mtp-prefix-cache.py /tmp/port-glm53-mtp-prefix-cache.py
+COPY patches/adaptive_mtp.py \
+    /usr/local/lib/python3.12/dist-packages/vllm/v1/spec_decode/dynamic/adaptive_mtp.py
+COPY patches/port-adaptive-mtp-glm53.py /tmp/port-adaptive-mtp-glm53.py
 RUN python3 /tmp/port-exl3-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-exl3-mtp-glm53.py \
@@ -108,9 +112,12 @@ RUN python3 /tmp/port-exl3-glm53.py \
 # ordering qualified by the clean-image compatibility test.
 RUN cd /usr/local/lib/python3.12/dist-packages \
  && patch --batch --forward -p1 < /tmp/vllm-replayssm-spec.patch \
+ && patch --batch --forward -p1 < /tmp/vllm-dynamic-sd-cudagraph.patch \
  && python3 /tmp/port-replayssm-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-glm53-mtp-prefix-cache.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-adaptive-mtp-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 -m compileall -q /usr/local/lib/python3.12/dist-packages/vllm
 
@@ -155,6 +162,7 @@ from vllm.third_party.flash_linear_attention.ops.kda_replayssm_spec_decode impor
 from vllm.config.cache import CacheConfig
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE
 from vllm.v1.kv_cache_interface import MLAAttentionSpec
+from vllm.v1.spec_decode.dynamic.adaptive_mtp import AdaptiveMTPController
 from vllm.v1.attention.backends.mla.b12x_mla_sparse import B12xMLASparseBackend
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
@@ -186,6 +194,9 @@ assert MambaStateShapeCalculator.replayssm_spec_ring_len(10, 5) == 16
 assert MambaStateShapeCalculator.replayssm_spec_ring_len(16, 5) == 32
 assert callable(kda_replayssm_spec_decode)
 assert callable(materialize_kda_replayssm_state)
+adaptive_probe = AdaptiveMTPController(max_depth=5, probe_interval=4)
+assert adaptive_probe.select(["c1"], 1, 5) == 5
+assert adaptive_probe.select(["c8"], 8, 1) == 1
 assert config.standard_fused_moe
 assert config._base_quant_config is None
 assert config._moe_prefix_is_exl3(

@@ -19,6 +19,9 @@ MAX_MODEL_LEN="${MAX_MODEL_LEN:-}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-16}"
 MTP_TOKENS="${MTP_TOKENS:-5}"
+ADAPTIVE_MTP="${ADAPTIVE_MTP:-1}"
+ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH:-1}"
+MTP_BATCH_SCHEDULE="${MTP_BATCH_SCHEDULE:-}"
 USE_REPLAYSSM="${USE_REPLAYSSM:-1}"
 REPLAYSSM_BUFFER_LEN="${REPLAYSSM_BUFFER_LEN:-10}"
 LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-1}"
@@ -88,6 +91,27 @@ if [[ ! "${MTP_TOKENS}" =~ ^[0-9]+$ ]]; then
   echo "MTP_TOKENS must be a non-negative integer; got: ${MTP_TOKENS}" >&2
   exit 2
 fi
+if [[ "${ADAPTIVE_MTP}" != 0 && "${ADAPTIVE_MTP}" != 1 ]]; then
+  echo "ADAPTIVE_MTP must be 0 or 1; got: ${ADAPTIVE_MTP}" >&2
+  exit 2
+fi
+if [[ "${ADAPTIVE_MTP}" == 1 && "${MTP_TOKENS}" == 0 ]]; then
+  echo "ADAPTIVE_MTP=1 requires MTP_TOKENS to be positive" >&2
+  exit 2
+fi
+if [[ "${ADAPTIVE_MTP}" == 1 ]]; then
+  if [[ ! "${ADAPTIVE_MTP_MIN_DEPTH}" =~ ^[0-9]+$ ]] || \
+     (( ADAPTIVE_MTP_MIN_DEPTH > MTP_TOKENS )); then
+    echo "ADAPTIVE_MTP_MIN_DEPTH must be between 0 and MTP_TOKENS; got: ${ADAPTIVE_MTP_MIN_DEPTH}" >&2
+    exit 2
+  fi
+fi
+if [[ "${ADAPTIVE_MTP}" == 1 && -z "${MTP_BATCH_SCHEDULE}" ]]; then
+  # Include every K=0..5 in graph preparation. The schedule supplies only
+  # initial priors; request-local feedback takes over after initialization,
+  # and the production K1 floor clamps the high-load K0 prior by default.
+  MTP_BATCH_SCHEDULE='[[1,1,5],[2,2,4],[3,3,3],[4,4,2],[5,8,1],[9,16,0]]'
+fi
 if [[ "${USE_REPLAYSSM}" != 0 && "${USE_REPLAYSSM}" != 1 ]]; then
   echo "USE_REPLAYSSM must be 0 or 1; got: ${USE_REPLAYSSM}" >&2
   exit 2
@@ -101,7 +125,16 @@ if [[ ! "${MAX_NUM_SEQS}" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 if [[ -z "${MAX_CUDAGRAPH_CAPTURE_SIZE}" ]]; then
-  MAX_CUDAGRAPH_CAPTURE_SIZE=$((MAX_NUM_SEQS * (MTP_TOKENS + 1)))
+  if [[ "${ADAPTIVE_MTP}" == 1 ]]; then
+    # Capturing the full C16 x (K5 + target) shape costs enough graph memory
+    # to push the 500K NVFP4 profile just below its advertised KV capacity.
+    # K4/K5 at C16 is a losing regime on this hardware anyway; the controller
+    # normally contracts it, and vLLM safely falls back above this ceiling.
+    # 64 still captures C16/K3 and every C1..C8/K5 execution shape.
+    MAX_CUDAGRAPH_CAPTURE_SIZE=64
+  else
+    MAX_CUDAGRAPH_CAPTURE_SIZE=$((MAX_NUM_SEQS * (MTP_TOKENS + 1)))
+  fi
 fi
 if [[ ! "${MAX_CUDAGRAPH_CAPTURE_SIZE}" =~ ^[1-9][0-9]*$ ]]; then
   echo "MAX_CUDAGRAPH_CAPTURE_SIZE must be a positive integer; got: ${MAX_CUDAGRAPH_CAPTURE_SIZE}" >&2
@@ -141,9 +174,22 @@ fi
 
 SPECULATIVE_ARGS=()
 if (( MTP_TOKENS > 0 )); then
+  SPECULATIVE_CONFIG="{\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_TOKENS}}"
+  if [[ -n "${MTP_BATCH_SCHEDULE}" ]]; then
+    SPECULATIVE_CONFIG="$(python3 -c '
+import json, sys
+tokens = int(sys.argv[1])
+schedule = json.loads(sys.argv[2])
+print(json.dumps({
+    "method": "mtp",
+    "num_speculative_tokens": tokens,
+    "num_speculative_tokens_per_batch_size": schedule,
+}, separators=(",", ":")))
+' "${MTP_TOKENS}" "${MTP_BATCH_SCHEDULE}")"
+  fi
   SPECULATIVE_ARGS+=(
     --speculative-config
-    "{\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_TOKENS}}"
+    "${SPECULATIVE_CONFIG}"
   )
   if [[ "${USE_REPLAYSSM}" == 1 ]]; then
     SPECULATIVE_ARGS+=(
@@ -185,6 +231,13 @@ docker run --detach \
   --env CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}" \
   --env TORCH_SHOW_CPP_STACKTRACES="${TORCH_SHOW_CPP_STACKTRACES:-0}" \
   --env VLLM_ENGINE_READY_TIMEOUT_S="${VLLM_ENGINE_READY_TIMEOUT_S:-3600}" \
+  --env VLLM_ADAPTIVE_MTP="${ADAPTIVE_MTP}" \
+  --env VLLM_ADAPTIVE_MTP_HISTORY="${VLLM_ADAPTIVE_MTP_HISTORY:-16}" \
+  --env VLLM_ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH}" \
+  --env VLLM_ADAPTIVE_MTP_DECISION_WINDOW="${VLLM_ADAPTIVE_MTP_DECISION_WINDOW:-8}" \
+  --env VLLM_ADAPTIVE_MTP_PROBE_INTERVAL="${VLLM_ADAPTIVE_MTP_PROBE_INTERVAL:-32}" \
+  --env VLLM_ADAPTIVE_MTP_PROBE_INTERVAL_MAX="${VLLM_ADAPTIVE_MTP_PROBE_INTERVAL_MAX:-256}" \
+  --env VLLM_ADAPTIVE_MTP_LOAD_THRESHOLDS="${VLLM_ADAPTIVE_MTP_LOAD_THRESHOLDS:-0.28,0.45,0.55,0.75,0.90}" \
   --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   --env NCCL_DEBUG="${NCCL_DEBUG:-WARN}" \
   --env VLLM_ENABLE_PCIE_ALLREDUCE="${ENABLE_PCIE_ALLREDUCE}" \
@@ -250,6 +303,15 @@ if (( MTP_TOKENS > 0 )); then
       "${MTP_TOKENS}" "${REPLAYSSM_BUFFER_LEN}"
   else
     printf 'MTP: %s tokens with baseline full-state rollback\n' "${MTP_TOKENS}"
+  fi
+  if [[ "${ADAPTIVE_MTP}" == 1 ]]; then
+    printf 'MTP policy: request-local K=%s..%s estimates; arithmetic-mean batch K\n' \
+      "${ADAPTIVE_MTP_MIN_DEPTH}" \
+      "${MTP_TOKENS}"
+  elif [[ -n "${MTP_BATCH_SCHEDULE}" ]]; then
+    printf 'MTP policy: batch schedule %s\n' "${MTP_BATCH_SCHEDULE}"
+  else
+    printf 'MTP policy: static K=%s\n' "${MTP_TOKENS}"
   fi
 else
   printf 'MTP: disabled\n'

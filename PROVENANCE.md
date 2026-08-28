@@ -11,9 +11,10 @@ This image intentionally composes pinned artifacts rather than pretending one up
 | EXL3 vLLM fork commit | `30038602b71395f481ef4a6edfe4fcf8551d9c15` |
 | B12x fork | `tpurtell/sparkinfer-glmrt@988246c8b007c9c1c2006eb677f6fa4b26aeb561` |
 | ReplaySSM base | vLLM PRs `#48792`, `#49847`, and `#49887`, ported onto the pinned vLLM commit |
+| Dynamic MTP graph fix | vLLM PR `#49652`, ported onto the pinned vLLM commit |
 | Runtime stack | Torch 2.13, CUDA 13, CUTLASS DSL 4.6.2 |
 
-The Docker build copies only the qualified EXL3/vLLM adapter files from the source image, fetches the pinned B12x fork, applies the upstream ReplaySSM series, then layers the narrow GLM/EXL3/B12x ports in `patches/`. The local ReplaySSM extension adds GLM's vector-gated KDA recurrence, power-of-two speculative ring sizing, non-contiguous projection strides, aligned-prefix state materialization, and GLM MTP cache-group scoping. A build-time probe checks model recognition, EXL3 registration, ReplaySSM sizing/imports, B12x APIs, cache layouts, head geometry, and exact runtime versions.
+The Docker build copies only the qualified EXL3/vLLM adapter files from the source image, fetches the pinned B12x fork, applies the upstream ReplaySSM series and dynamic-MTP graph fix, then layers the narrow GLM/EXL3/B12x ports in `patches/`. The local ReplaySSM extension adds GLM's vector-gated KDA recurrence, power-of-two speculative ring sizing, non-contiguous projection strides, aligned-prefix state materialization, and GLM MTP cache-group scoping. The local scheduler port adds request-lifetime acceptance feedback and combines concurrent predictions with a rounded arithmetic mean before the fused draft. A build-time probe checks model recognition, EXL3 registration, ReplaySSM sizing/imports, adaptive policy imports, B12x APIs, cache layouts, head geometry, and exact runtime versions.
 
 ## Upstream audit
 
@@ -29,6 +30,12 @@ Useful references:
 - https://github.com/vllm-project/vllm/pull/48792
 - https://github.com/vllm-project/vllm/pull/49847
 - https://github.com/vllm-project/vllm/pull/49887
+- https://github.com/vllm-project/vllm/pull/49652
+- https://github.com/vllm-project/vllm/issues/51303
+- https://github.com/vllm-project/vllm/issues/46295
+- https://github.com/vllm-project/vllm/issues/48627
+- https://github.com/vllm-project/vllm/issues/47602
+- https://github.com/vllm-project/vllm/issues/48494
 - https://github.com/vllm-project/vllm/issues/46187
 - https://github.com/vllm-project/vllm/issues/47572
 - https://github.com/MiaAI-Lab/GLM-5.3-Flash-NVFP4-Dual-DGX-Spark

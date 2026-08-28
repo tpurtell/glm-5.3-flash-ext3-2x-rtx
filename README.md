@@ -2,18 +2,18 @@
 
 Half a million tokens, two Blackwells, zero patience for generic kernels.
 
-This recipe serves [Brandon's GLM-5.3 Flash EXL3 4 bpw quant](https://huggingface.co/brandonmusic/GLM-5.3-Flash-EXL3-4bpw) with vLLM on two PCIe-connected SM120 GPUs. The default is the fun profile: MTP5 with compact KDA rollback, NVFP4 MLA cache, DCP2, 16 scheduler slots, a 500,000-token model limit, and every B12x path that won its hardware qualification.
+This recipe serves [Brandon's GLM-5.3 Flash EXL3 4 bpw quant](https://huggingface.co/brandonmusic/GLM-5.3-Flash-EXL3-4bpw) with vLLM on two PCIe-connected SM120 GPUs. The default is the fun profile: feedback-adaptive MTP K1…K5 with compact KDA rollback, NVFP4 MLA cache, DCP2, 16 scheduler slots, a 500,000-token model limit, and every B12x path that won its hardware qualification.
 
 ## The good bits
 
 | Highlight | Measured result |
 |---|---:|
 | 128K prefill, C1 | **4,270 prompt tok/s** median (29.97 s TTFT) |
-| Decode, C1 | **98.4 tok/s MTP5** / **71.0 tok/s MTP-off** |
-| Decode, C16 aggregate | **276.5 tok/s MTP5** / **543.3 tok/s MTP-off** |
-| Release KV pool | **537,500 tokens** at the safe 0.950 memory ceiling |
+| Decode, C1 | **106.7 adaptive** / 98.4 fixed MTP5 / 71.0 MTP-off tok/s |
+| Decode, C16 aggregate | **335.8 adaptive** / 276.5 fixed MTP5 / 543.3 MTP-off tok/s |
+| Release KV pool | **525,000 tokens** at the safe 0.950 memory ceiling |
 
-These are steady-state NVFP4 medians of three fixed-workload runs. Prefill is client-observed request-to-first-token time and includes server tokenization; decode excludes TTFT and emits 128 tokens per sequence. MTP loves this free-form workload at C1 and loses badly once C16 is saturated—acceptance and workload matter. The full NVFP4/FP8 prefill curves, ranges, and raw reports are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
+These are steady-state NVFP4 medians of three fixed-workload runs. Prefill is client-observed request-to-first-token time and includes server tokenization; decode excludes TTFT and emits 128 tokens per sequence. Adaptive MTP raises the fixed-MTP5 result at both headline loads; fully disabling the resident MTP path still wins this synthetic C16 free-form decode. Acceptance and workload matter. The full NVFP4/FP8 prefill curves, decode curve, ranges, and raw reports are in [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
 
 ## Quick start
 
@@ -48,20 +48,26 @@ IMAGE=glm53-exl3-b12x:local ./start.sh
 | `KV_CACHE_PROFILE` | `nvfp4` | B12x compact 368-byte NoPE MLA records |
 | `DECODE_CONTEXT_PARALLEL_SIZE` | `2` | DCP2 shards long-context cache and attention work |
 | `MAX_MODEL_LEN` | `500000` | Qualified at an exact 499K-token prompt |
-| `MAX_NUM_SEQS` | `16` | Qualified with 16 simultaneous requests |
+| `MAX_NUM_SEQS` | `16` | Qualified with a 16-request decode fan-out |
 | `MAX_NUM_BATCHED_TOKENS` | `2048` | Leaves enough activation headroom for the 500K pool |
-| `MTP_TOKENS` | `5` | Best default for structured and agent-shaped output |
+| `MTP_TOKENS` | `5` | Maximum adaptive draft depth |
+| `ADAPTIVE_MTP` | `1` | Re-estimate K throughout every request |
+| `ADAPTIVE_MTP_MIN_DEPTH` | `1` | Measured floor; K0 is slower while MTP remains resident |
 | `USE_REPLAYSSM` | `1` | Compact KDA rollback instead of five full state pages |
 | `REPLAYSSM_BUFFER_LEN` | `10` | Largest logical history that still uses a 16-slot ring |
 | `GPU_MEMORY_UTILIZATION` | `0.950` | Measured release ceiling; no sneaky 0.96+ foot-gun |
 | FlashInfer autotune | off | Avoids the unhelpful/unstable GLM SM12x tuning path |
 
-`MAX_NUM_SEQS=16` is scheduler concurrency, not a promise that sixteen 500K prompts fit simultaneously. The measured MTP5/NVFP4 pool is 537,500 logical tokens, or 1.075× one 500K request. ReplaySSM is the reason MTP does not eat five extra full KDA state pages per live sequence.
+`MAX_NUM_SEQS=16` is scheduler concurrency, not a promise that sixteen 500K prompts fit simultaneously. The measured adaptive-MTP/NVFP4 pool is 525,000 logical tokens, or 1.05× one 500K request. ReplaySSM is the reason MTP does not eat five extra full KDA state pages per live sequence.
+
+The adaptive controller is request-local. Every live request predicts its own preferred K after each verification window; because vLLM drafts the fused batch together, the executed K is the half-up rounded arithmetic mean. If three requests predict K5, K3, and K2, the batch runs `(5 + 3 + 2) / 3 → K3`. At C1, that one request's estimate is the executed K, so it can move throughout a long agent turn instead of being stuck at launch-time MTP5.
 
 MTP and cache behavior remain explicit knobs:
 
 ```bash
 MTP_TOKENS=0 ./start.sh                 # no speculative decoding
+ADAPTIVE_MTP=0 MTP_TOKENS=5 ./start.sh  # fixed K5
+ADAPTIVE_MTP_MIN_DEPTH=0 ./start.sh      # permit K0 probes (slower here)
 USE_REPLAYSSM=0 MTP_TOKENS=5 ./start.sh # baseline full-state rollback
 ENABLE_PREFIX_CACHING=0 ./start.sh      # mamba cache mode none
 ```
@@ -83,6 +89,8 @@ This is well past stock vLLM. The image pins the day-zero GLM runtime, applies t
 - Explicit input/output strides for GLM's non-contiguous fused projection views. Without this, MTP appeared to run but produced corrupted repetition and near-zero acceptance.
 - GLM MTP cache-group scoping, so the mixed target/draft MLA group gets EAGLE semantics while target-only KDA groups retain aligned checkpoints.
 - Compact KDA cache accounting: one recurrent checkpoint plus BF16 input and FP32 gate history instead of five extra full recurrent-state pages at MTP5.
+- A request-local adaptive MTP controller with eight-result evidence epochs, load-calibrated contraction, conservative expansion, stale-feedback rejection, and an arithmetic-mean fused-batch K. Finished requests do not leak policy state.
+- The two-file dynamic-MTP CUDA-graph fix from upstream vLLM PR #49652. Variable K previously reached invalid dummy graph batches on this pinned runtime.
 - A bounded 1,024-row B12x EXL3 prefill arena. Scheduler prefills are tiled through it exactly, cutting the persistent arena from 1,822.3 to 310.1 MiB per GPU. The 2,048-token scheduler cap also trims peak activation memory enough for 500K at 0.95.
 - The earlier EXL3 GLM/MTP weight mapping, B12x sparse MLA/indexer, NVFP4 cache, DCP2 global owner exchange, PCIe DCP A2A, PCIe TP all-reduce, H64 query projection, and mHC ports.
 
@@ -90,7 +98,7 @@ The Docker build probes these imports and invariants instead of assuming that a 
 
 ## What is actually accelerated
 
-The launcher enables B12x EXL3 K4 MoE for decode and tiled prefill, native rope-free sparse MLA, compact NVFP4/FP8 MLA cache, fused paged K-pool score/top-k, DCP2 global top-k owner exchange, graph-captured PCIe MLA DCP all-to-all, PCIe one-shot TP all-reduce through 384 KiB, GLM H64 query projection, and the exact batch-1 mHC fusion. CUDA graphs cover the MTP-expanded batches through 96 rows.
+The launcher enables B12x EXL3 K4 MoE for decode and tiled prefill, native rope-free sparse MLA, compact NVFP4/FP8 MLA cache, fused paged K-pool score/top-k, DCP2 global top-k owner exchange, graph-captured PCIe MLA DCP all-to-all, PCIe one-shot TP all-reduce through 384 KiB, GLM H64 query projection, and the exact batch-1 mHC fusion. The adaptive profile captures through 64 expanded rows—enough for C16/K3 and C1…C8/K5—and safely falls back to eager execution above it. Capturing every C16/K5 shape reduced the advertised 500K capacity.
 
 The KDA ReplaySSM kernel checkpoints one recurrent state and keeps a compact power-of-two ring of inputs and vector gates. At C16/MTP5 it raised the measured pool from 51,200 to 107,054 tokens under the original 8K profiling setup; the bounded EXL3 prefill arena plus the 2K release batch cap then made the full 500K launch fit at 0.95. Aligned prefix caching stays enabled. With DCP2 plus MTP, a reusable prefix first appears above 30,720 tokens because the final 15,360-token physical MLA block is deliberately recomputed.
 
