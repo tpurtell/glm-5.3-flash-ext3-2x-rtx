@@ -30,6 +30,20 @@ diff --git a/vllm/v1/worker/gpu/cudagraph_utils.py b/vllm/v1/worker/gpu/cudagrap
              and speculative_config.uses_dynamic_speculative_decoding()
          ):
              num_spec_per_batch_size = (
+@@ -268,4 +273,12 @@ class CUDAGraphWrapper:
+-            if mixed_mode:
++            # ReplaySSM speculative verification has a static KDA branch and
++            # cannot use the generic mixed prefill/decode graph: its synthetic
++            # dummy rows may be wider than the maximum verify window, while a
++            # real decode row is always bounded by decode_query_len. Keep the
++            # dynamic uniform decode graphs and run prefill/mixed batches eager.
++            if (
++                mixed_mode
++                and not self.vllm_config.cache_config.use_replayssm_spec
++            ):
+                 # for PIECEWISE graphs there is no limit on requests when replaying
+                 # i.e. no request padding is needed, so we leave it as None.
+                 # For breakable PW graphs, break-point kernels read the real batch
 diff --git a/vllm/v1/worker/gpu/spec_decode/autoregressive/speculator.py b/vllm/v1/worker/gpu/spec_decode/autoregressive/speculator.py
 --- a/vllm/v1/worker/gpu/spec_decode/autoregressive/speculator.py
 +++ b/vllm/v1/worker/gpu/spec_decode/autoregressive/speculator.py
