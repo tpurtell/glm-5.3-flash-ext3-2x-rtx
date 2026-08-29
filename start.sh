@@ -2,12 +2,23 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-MODEL_ID="${MODEL_ID:-brandonmusic/GLM-5.3-Flash-EXL3-4bpw}"
-MODEL_REVISION="${MODEL_REVISION:-4739eb1bcfd478e8a32da6358908567bc3a9ac51}"
+MODEL_ID="${MODEL_ID:-wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1}"
+MODEL_REVISION="${MODEL_REVISION:-4967efc3cf349681f208f217e29d29c11c9b0c45}"
 HF_CACHE_DIR="${HF_HOME:-${HOME}/.cache/huggingface}"
 MODEL_CACHE_NAME="models--${MODEL_ID//\//--}"
 MODEL_REPO_DIR="${MODEL_REPO_DIR:-${HF_CACHE_DIR}/hub/${MODEL_CACHE_NAME}}"
-MODEL_DIR="${MODEL_REPO_DIR}/snapshots/${MODEL_REVISION}"
+MODEL_DIR_OVERRIDE="${MODEL_DIR_OVERRIDE:-}"
+if [[ -n "${MODEL_DIR_OVERRIDE}" ]]; then
+  MODEL_DIR="$(realpath -e -- "${MODEL_DIR_OVERRIDE}")"
+  MODEL_MOUNT_SOURCE="${MODEL_DIR}"
+  MODEL_MOUNT_TARGET=/model
+  MODEL_CONTAINER_DIR=/model
+else
+  MODEL_DIR="${MODEL_REPO_DIR}/snapshots/${MODEL_REVISION}"
+  MODEL_MOUNT_SOURCE="${MODEL_REPO_DIR}"
+  MODEL_MOUNT_TARGET=/model-repo
+  MODEL_CONTAINER_DIR="/model-repo/snapshots/${MODEL_REVISION}"
+fi
 IMAGE="${IMAGE:-ghcr.io/tpurtell/glm-5.3-flash-exl3-4bpw-2x-rtx:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-glm53-flash-exl3-b12x-vllm}"
 SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-${MODEL_ID}}"
@@ -45,8 +56,8 @@ case "${KV_CACHE_PROFILE}" in
   fp8)
     PROFILE_KV_CACHE_DTYPE=fp8_ds_mla
     PROFILE_GPU_MEMORY_UTILIZATION=0.950
-    PROFILE_MAX_MODEL_LEN=360000
-    PROFILE_MAX_NUM_BATCHED_TOKENS=1024
+    PROFILE_MAX_MODEL_LEN=500000
+    PROFILE_MAX_NUM_BATCHED_TOKENS=2048
     ;;
   *)
     echo "KV_CACHE_PROFILE must be nvfp4 or fp8; got: ${KV_CACHE_PROFILE}" >&2
@@ -142,13 +153,34 @@ if [[ ! "${MAX_CUDAGRAPH_CAPTURE_SIZE}" =~ ^[1-9][0-9]*$ ]]; then
 fi
 if [[ ! -f "${MODEL_DIR}/config.json" ]]; then
   echo "Pinned HF snapshot is missing: ${MODEL_DIR}" >&2
-  echo "Run ${SCRIPT_DIR}/download.sh first." >&2
+  if [[ -z "${MODEL_DIR_OVERRIDE}" ]]; then
+    echo "Run ${SCRIPT_DIR}/download.sh first." >&2
+  fi
   exit 1
 fi
-if [[ "$(find "${MODEL_DIR}" -maxdepth 1 \( -type l -o -type f \) -name 'model-*-of-00120.safetensors' | wc -l)" -ne 120 ]]; then
-  echo "Pinned HF snapshot is incomplete (expected 120 weight shards): ${MODEL_DIR}" >&2
-  exit 1
-fi
+python3 - "${MODEL_DIR}" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+index_path = root / "model.safetensors.index.json"
+try:
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"Invalid checkpoint index {index_path}: {exc}")
+weight_map = index.get("weight_map")
+if not isinstance(weight_map, dict) or not weight_map:
+    raise SystemExit(f"Checkpoint index has no weight_map: {index_path}")
+shards = sorted(set(weight_map.values()))
+for name in shards:
+    relative = pathlib.PurePosixPath(name)
+    if relative.is_absolute() or ".." in relative.parts or not name:
+        raise SystemExit(f"Unsafe shard path in checkpoint index: {name!r}")
+    if not (root / relative).is_file():
+        raise SystemExit(f"Checkpoint shard is missing: {root / relative}")
+print(f"Validated {len(shards)} checkpoint shards")
+PY
 if [[ ! -f "${MODEL_DIR}/quantization_config.json" ]]; then
   echo "EXL3 tensor manifest is missing: ${MODEL_DIR}/quantization_config.json" >&2
   exit 1
@@ -217,8 +249,8 @@ else
   exit 2
 fi
 
-# Mount the complete HF repository rather than only its symlinked snapshot so
-# vLLM can resolve every shard into the repository's blobs directory.
+# A normal HF snapshot needs its complete repository mount so blob symlinks
+# resolve. MODEL_DIR_OVERRIDE mounts a self-contained local checkpoint directly.
 docker run --detach \
   --name "${CONTAINER_NAME}" \
   --restart unless-stopped \
@@ -266,10 +298,10 @@ docker run --detach \
   --env B12X_EXL3_BF16_GEMV="${B12X_EXL3_BF16_GEMV:-1}" \
   --env VLLM_B12X_GLM_H64_QUERY_PROJ="${VLLM_B12X_GLM_H64_QUERY_PROJ:-auto}" \
   --env VLLM_USE_B12X_MHC="${VLLM_USE_B12X_MHC:-auto}" \
-  --volume "${MODEL_REPO_DIR}:/model-repo:ro" \
+  --volume "${MODEL_MOUNT_SOURCE}:${MODEL_MOUNT_TARGET}:ro" \
   --volume "${CACHE_DIR}:/root/.cache" \
   "${IMAGE}" \
-  "/model-repo/snapshots/${MODEL_REVISION}" \
+  "${MODEL_CONTAINER_DIR}" \
   --served-model-name "${SERVED_MODEL_NAME}" \
   --host 0.0.0.0 \
   --port 8001 \

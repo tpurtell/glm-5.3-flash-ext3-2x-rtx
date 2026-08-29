@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "target_prompt_tokens": 128000,
+  "nonce": "",
+  "cache_salt": "fp8-adaptive-release-first-128k-20260829",
+  "prompt_sha256": "95c0c3e35191d72fe567e91bf7497db568f9f1e26adff76149ede3592eb60b2b",
+  "needle_occurrences_in_prompt": 1,
+  "usage": {
+    "prompt_tokens": 128000,
+    "total_tokens": 128057,
+    "completion_tokens": 57,
+    "prompt_tokens_details": null
+  },
+  "build_seconds": 0.373,
+  "request_seconds": 42.34,
+  "needle": "SPARK-B12X-5.3-128K-7429",
+  "output": " SPARK-B12X-5.3-128K-7429\nExplanation: The code was stored verbatim at the start and never modified, so it can be retrieved exactly.</think>SPARK-B12X-5.3-128K-7429"
+}

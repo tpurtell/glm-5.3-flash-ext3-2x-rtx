@@ -175,7 +175,9 @@ def validate_case_content(case_id: str, content: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8001")
-    parser.add_argument("--model", default="brandonmusic/GLM-5.3-Flash-EXL3-4bpw")
+    parser.add_argument(
+        "--model", default="wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1"
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=900)
     parser.add_argument(

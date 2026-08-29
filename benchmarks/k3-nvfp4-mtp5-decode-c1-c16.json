@@ -1,0 +1,87 @@
+{
+  "schema": "glm53-decode-concurrency.v2",
+  "method": "one depth-0 prompt with n parallel continuations; aggregate decode timing spans first to last streamed token and excludes TTFT; the same sampling seed is repeated so MTP acceptance is comparable",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "kv_cache_profile": "nvfp4",
+  "mtp_tokens": 5,
+  "mtp_policy": "static",
+  "output_tokens_per_sequence": 128,
+  "warmup_runs_per_point": 2,
+  "runs_per_point": 3,
+  "points": [
+    {
+      "concurrency": 1,
+      "aggregate_decode_tokens_per_second": {
+        "median": 101.63870190807428,
+        "min": 99.60201944338584,
+        "max": 105.76342828869295
+      },
+      "runs": [
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 128,
+          "decode_tokens": 127,
+          "decode_seconds": 1.275074548786506,
+          "decode_tokens_per_second": 99.60201944338584,
+          "ttft_ms": 139.6728940308094
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 128,
+          "decode_tokens": 127,
+          "decode_seconds": 1.2007931480184197,
+          "decode_tokens_per_second": 105.76342828869295,
+          "ttft_ms": 140.71320579387248
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 128,
+          "decode_tokens": 127,
+          "decode_seconds": 1.249524025944993,
+          "decode_tokens_per_second": 101.63870190807428,
+          "ttft_ms": 116.28680094145238
+        }
+      ]
+    },
+    {
+      "concurrency": 16,
+      "aggregate_decode_tokens_per_second": {
+        "median": 437.7227679726899,
+        "min": 200.65131371238485,
+        "max": 450.849276608402
+      },
+      "runs": [
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 10.127020662883297,
+          "decode_tokens_per_second": 200.65131371238485,
+          "ttft_ms": 117.65924119390547
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 4.642207690980285,
+          "decode_tokens_per_second": 437.7227679726899,
+          "ttft_ms": 120.73945603333414
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 4.5070494851097465,
+          "decode_tokens_per_second": 450.849276608402,
+          "ttft_ms": 139.81922389939427
+        }
+      ]
+    }
+  ]
+}

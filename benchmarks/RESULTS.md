@@ -1,61 +1,76 @@
-# Qualification results
+# K3 qualification results
 
-Measured 2026-08-28 on two NVIDIA RTX PRO 6000 Blackwell Workstation Edition GPUs (SM120, 97,887 MiB each), driver 595.71.05. Release defaults were request-local adaptive MTP K1…K5 with compact KDA ReplaySSM, NVFP4 MLA, TP2 + DCP2, concurrency 16, a 500K max length, a 2,048-token batch cap, and GPU memory utilization 0.950.
+Measured 2026-08-29 on two NVIDIA RTX PRO 6000 Blackwell Workstation Edition GPUs (SM120, 97,887 MiB each), driver 595.71.05. Unless a row says otherwise, the runtime used [`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1`](https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1), TP2 + DCP2, request-local adaptive MTP K1…K5, compact KDA ReplaySSM, C16 scheduler capacity, a 500K model limit, a 2,048-token batch cap, and GPU memory utilization 0.950.
 
 ## Capacity and correctness
 
-| Check | Result |
-|---|---|
-| Release KV cache allocation | 525,000 logical tokens; 1.05× one 500K request |
-| FP8 profile allocation | 514,285 logical tokens; 1.43× one 360K request |
-| MTP-off NVFP4 allocation | 1,560,000 logical tokens at the same 500K/0.950 settings |
-| Compact rollback gain | 51,200 → 107,054 tokens (2.09×) under the same 8K-profile control |
-| Exact 128,000-token prompt | pass; needle recovered; 92 generated tokens; 34.114 s |
-| 500K configuration | pass at 0.950; one full-length request fits with 25,000 tokens spare |
-| Aligned prefix reuse | pass; repeated 45,006-token prompt reused 15,360 tokens |
-| Concurrency | C16 decode completed 16 × 128 output tokens in every measured run |
-| Seven content types | 6/7 pass in 12.337 s; JSON miss was correct JSON wrapped in a fence |
-| Tool-use suite | 90/100; 124/138 points; 59 pass, 6 partial, 4 fail; 0 transport errors |
+| Check | NVFP4 MLA | FP8 MLA |
+|---|---:|---:|
+| Model memory per GPU | 64.1 GiB | 64.1 GiB |
+| Available cache memory per GPU | 19.86 GiB | 19.84 GiB |
+| Logical KV pool | **7,200,000 tokens** | **4,553,846 tokens** |
+| 500K request-equivalents | 14.40× | 9.11× |
+| Exact uncached 128K retrieval | pass, 38.655 s | pass, 42.340 s |
 
-The tool suite used 69 scenarios, 52 tools, parallelism 4, thinking enabled, and a 900-second timeout. Its two safety-gate warnings were partial prompt-injection leakage (without executing it) and an empty required web-search query. These are model-behavior results, not hidden as serving failures.
+Both 128K tests used exactly 128,000 prompt tokens, contained the secret once, shared prompt SHA-256 `95c0c3e35191d72fe567e91bf7497db568f9f1e26adff76149ede3592eb60b2b`, and used unique cache salts. The correctness gate checks that the secret is recovered; it does not grade the model's extra prose. Raw reports: [NVFP4](k3-nvfp4-adaptive-128k-release.json) and [FP8](k3-fp8-adaptive-128k-release.json).
 
-The strict JSON prompt and expected values were simple: `src/cache.rs`, `replace`, lines 41–47, plus a non-empty rationale. The model returned exactly those values but enclosed the object in a `json` fence, so the strict bare-JSON contract correctly remains a miss. Repeating the request with OpenAI `response_format={"type":"json_object"}` returned bare parseable JSON. This is a presentation-level model miss, not a transport, quantization, or parser failure.
+The old K4 profile allocated nearly identical 525K NVFP4 and 514K FP8 pools because full MTP state pages and an oversized EXL3 prefill arena dominated memory. ReplaySSM plus bounded exact-tiling removes that bug-shaped fixed cost. The expected cache-format difference is now visible: NVFP4 supplies 1.58× FP8's measured capacity at the same model, graph, batch, and memory settings.
 
-Raw content results are in [seven-content-types-adaptive-mtp.jsonl](seven-content-types-adaptive-mtp.jsonl). The fixed-MTP5 control is retained in [seven-content-types-mtp5-replayssm.jsonl](seven-content-types-mtp5-replayssm.jsonl).
+## Prefill throughput by existing depth
 
-## Prefill throughput
-
-Each point is C1 with an exact-length, unique prompt, so aligned prefix caching cannot reuse an earlier block. Timing spans client request to first streamed token, including server tokenization and the one-token handoff. Every depth is warmed separately, then measured three times. Rates and TTFTs below are medians.
+Each point is C1 with an exact-length unique prompt. Prefix caching cannot reuse an earlier block. Timing spans the client request through the first streamed token, including server tokenization. Every depth is warmed independently and then measured three times; values are medians.
 
 | Prompt length | NVFP4 tok/s | NVFP4 TTFT | FP8 tok/s | FP8 TTFT |
 |---:|---:|---:|---:|---:|
-| 2,048 | 4,494 | 0.456 s | 4,214 | 0.486 s |
-| 8,192 | 4,593 | 1.784 s | 4,294 | 1.908 s |
-| 32,768 | 4,641 | 7.060 s | 4,155 | 7.887 s |
-| 65,536 | 4,366 | 15.009 s | 4,078 | 16.069 s |
-| 128,000 | 4,270 | 29.974 s | 4,045 | 31.643 s |
+| 2,048 | 4,787.1 | 0.428 s | 4,557.4 | 0.449 s |
+| 8,192 | 4,862.2 | 1.685 s | 4,609.0 | 1.777 s |
+| 32,768 | 4,904.9 | 6.681 s | 4,462.5 | 7.343 s |
+| 65,536 | 4,676.7 | 14.013 s | 4,255.3 | 15.401 s |
+| 128,000 | **4,415.5** | **28.989 s** | **4,196.6** | **30.501 s** |
 
-NVFP4 used the release 500K/2K profile; FP8 used its qualified 360K/1K profile. Both used MTP5, DCP2, C16 scheduler capacity, and memory utilization 0.950. Raw reports: [NVFP4 prefill](nvfp4-mtp5-prefill-c1.json) and [FP8 prefill](fp8-mtp5-prefill-c1.json).
+Raw three-run ranges are in the [NVFP4](k3-nvfp4-adaptive-prefill-c1.json) and [FP8](k3-fp8-adaptive-prefill-c1.json) reports.
 
 ## Pure decode throughput
 
-Pure decode uses one depth-0 prompt with `n` parallel continuations. Timing spans first to last streamed token, excluding TTFT; every sequence emits exactly 128 tokens. Three full 128-token requests warm each adaptive point first, covering lazy JIT and variable-K shapes, and one sampling seed is fixed across repeats so MTP acceptance is comparable. Values are three-run medians with observed ranges.
+Pure decode uses a depth-0 prompt with `n` parallel continuations. Timing spans first to last streamed token, excludes TTFT, and emits exactly 128 tokens per sequence. Two complete requests warm every adaptive point before three measured runs. C16 is aggregate throughput across all requests.
 
-| Cache / policy | C1 | C2 | C4 | C8 | C16 |
+| Cache / policy | C1 | C2 | C4 | C8 | C16 aggregate |
 |---|---:|---:|---:|---:|---:|
-| NVFP4 adaptive K1…K5 | **106.7** (104.3–110.9) | 154.7 (153.2–160.4) | 132.7 (115.7–163.6) | **345.4** (341.2–351.4) | **335.8** (300.1–338.9) |
-| NVFP4 fixed K5 | 98.4 (96.5–104.5) | — | — | — | 276.5 (267.9–284.9) |
-| NVFP4 fixed K1 | 79.1 (77.5–81.4) | — | — | — | 335.8 (326.5–342.2) |
-| NVFP4 MTP-off | 71.0 (71.0–71.1) | — | — | — | 543.3 (526.1–547.4) |
-| FP8 fixed K5 | 96.8 (94.9–102.8) | — | — | — | 174.8 (161.6–179.4) |
+| NVFP4 adaptive K1…K5 | **106.9** (93.4–108.8) | 178.5 (175.6–187.7) | 128.4 (106.0–139.3) | 368.8 (331.5–369.1) | **598.7** (580.8–604.5) |
+| FP8 adaptive K1…K5 | **112.4** (110.9–115.3) | 175.9 (160.3–186.0) | 104.3 (101.5–161.1) | 359.9 (355.4–402.6) | 589.5 (226.4–617.1) |
+| NVFP4 fixed K5 | 101.6 (99.6–105.8) | — | — | — | 437.7 (200.7–450.8) |
+| NVFP4 MTP off | **71.4** (71.4–71.5) | — | — | — | **561.3** (554.8–567.4)¹ |
 
-On this unconstrained free-form continuation, adaptive MTP improves fixed K5 by 8.5% at C1 and 21.5% at C16. It converges close to the measured K1 ceiling under load while retaining K5 when C1 acceptance pays for it. C4 remains conspicuously weak and variable; the raw point is included rather than smoothed away. Agent, code, and structured workloads can accept deeper drafts, so MTP performance remains workload-sensitive. FP8 changes the target trajectory enough to change draft acceptance too, so its decode result is not expected to scale only with cache bandwidth.
+¹ The MTP-off C16 value is a five-run steady control. FP8's main C16 curve also contained one 226.4 tok/s outlier; a separate five-run steady control measured **571.4 tok/s** median with a 569.2–614.4 range. Both raw results are retained.
 
-Raw reports: [NVFP4 adaptive curve](nvfp4-mtp-adaptive-request-mean-decode-c1-c16.json), [NVFP4 fixed K1](nvfp4-mtp-runtime-k1-decode-c1-c16.json), [NVFP4 fixed K5](nvfp4-mtp5-decode-c1-c16.json), [NVFP4 MTP-off](nvfp4-mtp0-decode-c1-c16.json), and [FP8 fixed K5](fp8-mtp5-decode-c1-c16.json). Reproduce them with `scripts/benchmark-prefill.py` and `scripts/benchmark-decode.py`.
+Adaptive MTP improves the steady MTP-off result by 49.7% at NVFP4 C1 and 6.7% at C16. C4 remains conspicuously weak and variable for both cache formats, so it is reported rather than smoothed away. Draft acceptance is workload-dependent; agent/code/structured traffic can differ from this free-form deterministic continuation.
+
+Raw reports: [NVFP4 adaptive curve](k3-nvfp4-adaptive-decode-c1-c16.json), [FP8 adaptive curve](k3-fp8-adaptive-decode-c1-c16.json), [FP8 steady C16](k3-fp8-adaptive-decode-c16-steady.json), [NVFP4 fixed K5](k3-nvfp4-mtp5-decode-c1-c16.json), [NVFP4 MTP-off C1/C16](k3-nvfp4-mtp0-decode-c1-c16.json), and [NVFP4 MTP-off steady C16](k3-nvfp4-mtp0-decode-c16-steady.json).
+
+## Full tool-use evaluation
+
+The K3/NVFP4 default completed all 69 deterministic scenarios with parallelism 4, thinking enabled, temperature 0, and a 900-second timeout:
+
+| Result | Count |
+|---|---:|
+| Score | **88/100** |
+| Points | **122/138** |
+| Pass / partial / fail | 56 / 10 / 3 |
+| API or transport failures | **0** |
+
+All parameter-precision, multi-step-chain, restraint/refusal, error-recovery, localization, structured-reasoning, code-pattern, toolset-scale, and autonomous-planning cases earned full points. The three failures were TC-34 prompt-injection leakage, TC-43 an empty required search query, and TC-66 an omitted `get_contacts` call. Several partials called the correct tool but then emitted an empty or repetitive final answer; those long generations are preserved in the raw log rather than recast as serving errors.
+
+The safety gate therefore remains failed, with two explicit warnings: partial prompt-injection compliance and the empty required query. This is model behavior, not a parser or transport failure.
+
+Raw evidence: [machine-readable result](k3-nvfp4-adaptive-tool-eval.json) and [generated prompt/expected/actual report](k3-nvfp4-adaptive-tool-eval/2026/08/2026-08-29T04-00-54.694970Z_93ec63da.md).
+
+## K3 versus the previous K4 quant
+
+The comparable K4 run scored 124/138 (90/100): 59 pass, 6 partial, 4 fail, and zero transport errors. K3 is two points lower, trades three passes for more partial credit, and has one fewer outright failure. K4 remains the quality/size option; K3's 127.30 GiB checkpoint is the capacity/performance release default. The original K4 raw prefill, decode, and content reports remain in this directory and release `v0.3.0` preserves its launcher profile.
 
 ## B12x DCP A2A admission
 
-Actual GLM geometry was 64 total heads, query width 512, output width 512. Ratios below are B12x over the vLLM/NCCL baseline; greater than 1 is faster.
+The admitted collective path was microbenchmarked on the same hardware with GLM's actual 64-head, 512-wide query/output geometry. Ratios are B12x over the vLLM/NCCL baseline; greater than 1 is faster.
 
 | Graph batch | BF16 query | FP8 query | Fused LSE combine |
 |---:|---:|---:|---:|
@@ -67,4 +82,4 @@ Actual GLM geometry was 64 total heads, query width 512, output width 512. Ratio
 | 24 | 0.951× | 1.092× | 1.292× |
 | 32 | 0.903× | 0.998× | 1.189× |
 
-The paired query-plus-combine path won at every captured batch size for both query formats. Eager execution did not, so the integration uses B12x only in graph capture and keeps the vLLM/NCCL eager fallback.
+The paired query-plus-combine path won at every captured batch size. Eager execution did not, so the integration admits B12x for the captured path and keeps vLLM/NCCL as the eager/large-shape fallback.

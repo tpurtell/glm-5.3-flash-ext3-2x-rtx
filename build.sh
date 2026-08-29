@@ -11,7 +11,7 @@ docker build --progress=plain \
   --label "org.opencontainers.image.revision=${VCS_REVISION}" \
   --label "org.opencontainers.image.source=${SOURCE_URL}" \
   --label "org.opencontainers.image.version=${IMAGE_VERSION}" \
-  --label "org.opencontainers.image.title=GLM-5.3 Flash EXL3 4bpw for 2x RTX PRO 6000" \
+  --label "org.opencontainers.image.title=GLM-5.3 Flash EXL3 K3 for 2x RTX PRO 6000" \
   --label "org.opencontainers.image.description=vLLM GLM-5.3 Flash EXL3 with B12x, DCP2, compact MLA, and adaptive MTP" \
   --tag "${IMAGE}" \
   "${SCRIPT_DIR}"

@@ -1,0 +1,68 @@
+{
+  "schema": "glm53-decode-concurrency.v2",
+  "method": "one depth-0 prompt with n parallel continuations; aggregate decode timing spans first to last streamed token and excludes TTFT; the same sampling seed is repeated so MTP acceptance is comparable",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "kv_cache_profile": "fp8",
+  "mtp_tokens": 5,
+  "mtp_policy": "adaptive",
+  "output_tokens_per_sequence": 128,
+  "warmup_runs_per_point": 2,
+  "runs_per_point": 5,
+  "points": [
+    {
+      "concurrency": 16,
+      "aggregate_decode_tokens_per_second": {
+        "median": 571.3857650597399,
+        "min": 569.2070517047318,
+        "max": 614.3665495623036
+      },
+      "runs": [
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 3.5698784720152617,
+          "decode_tokens_per_second": 569.2070517047318,
+          "ttft_ms": 114.0895129647106
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 3.5562664039898664,
+          "decode_tokens_per_second": 571.3857650597399,
+          "ttft_ms": 115.04499893635511
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 3.3074717388954014,
+          "decode_tokens_per_second": 614.3665495623036,
+          "ttft_ms": 132.4618321377784
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 3.568063896149397,
+          "decode_tokens_per_second": 569.4965278488721,
+          "ttft_ms": 219.31295888498425
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 128,
+          "completion_tokens": 2048,
+          "decode_tokens": 2032,
+          "decode_seconds": 3.4587871530093253,
+          "decode_tokens_per_second": 587.4891718133201,
+          "ttft_ms": 132.0838239043951
+        }
+      ]
+    }
+  ]
+}

@@ -168,7 +168,7 @@ from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 def entry(name: str):
     return {
-        "bits_per_weight": 4,
+        "bits_per_weight": 3,
         "quant_format": "exl3",
         "stored_tensors": {
             f"{name}.suh": {},
@@ -184,7 +184,7 @@ storage = {
     f"{root}.up_proj": entry(f"{root}.up_proj"),
     f"{root}.down_proj": entry(f"{root}.down_proj"),
 }
-config = Exl3Config(bits=4, codebook="mcg", tensor_storage=storage)
+config = Exl3Config(bits=3, codebook="mcg", tensor_storage=storage)
 config._configure_standard_fused_moe(SimpleNamespace(model_type="glm5_next"))
 config._configure_base_quantization(SimpleNamespace(model_type="glm5_next"))
 
@@ -246,7 +246,9 @@ assert callable(PCIeDCPA2APool.from_exchange_group)
 assert B12xPcieAllReduce.backend_name(None) == "B12X_PCIE_ONESHOT"
 assert B12xMLASparseBackend.get_supported_head_sizes() == [512, 576]
 assert CacheConfig(cache_dtype="nvfp4_ds_mla").cache_dtype == "nvfp4_ds_mla"
+assert CacheConfig(cache_dtype="fp8_ds_mla").cache_dtype == "fp8_ds_mla"
 assert STR_DTYPE_TO_TORCH_DTYPE["nvfp4_ds_mla"] is torch.uint8
+assert STR_DTYPE_TO_TORCH_DTYPE["fp8_ds_mla"] is torch.uint8
 assert B12xMLASparseBackend.get_kv_cache_shape(1, 64, 1, 576, "nvfp4_ds_mla") == (
     1,
     64,
@@ -259,6 +261,18 @@ assert MLAAttentionSpec(
     dtype=torch.uint8,
     cache_dtype_str="nvfp4_ds_mla",
 ).real_page_size_bytes == 64 * 432
+assert B12xMLASparseBackend.get_kv_cache_shape(1, 64, 1, 576, "fp8_ds_mla") == (
+    1,
+    64,
+    656,
+)
+assert MLAAttentionSpec(
+    block_size=64,
+    num_kv_heads=1,
+    head_size=576,
+    dtype=torch.uint8,
+    cache_dtype_str="fp8_ds_mla",
+).real_page_size_bytes == 64 * 656
 assert AttentionBackendEnum.B12X_MLA_SPARSE.get_class() is B12xMLASparseBackend
 assert "output_physical_slots" in __import__("inspect").signature(
     SparseAttnIndexer.__init__
@@ -291,7 +305,7 @@ print("GLM-5.3 vLLM + EXL3 + B12x compatibility probe passed")
 PY
 
 LABEL org.opencontainers.image.source="https://github.com/tpurtell/glm-5.3-flash-ext3-4-bit-2x-rtx" \
-      org.opencontainers.image.description="GLM-5.3 Flash EXL3 on 2x SM120: compact NVFP4 MLA, DCP2, and B12x PCIe kernels" \
+      org.opencontainers.image.description="GLM-5.3 Flash EXL3 K3 on 2x SM120: adaptive MTP, compact MLA, DCP2, and B12x PCIe kernels" \
       org.opencontainers.image.licenses="Apache-2.0" \
       io.tpurtell.b12x.source="https://github.com/tpurtell/sparkinfer-glmrt" \
       io.tpurtell.glm-base.digest="sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5" \

@@ -1,4 +1,6 @@
 .cache/
+.coldcache-*/
+data/
 *.log
 __pycache__/
 *.pyc
