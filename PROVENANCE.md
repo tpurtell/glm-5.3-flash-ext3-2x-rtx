@@ -6,9 +6,9 @@ This recipe consumes a finished Hugging Face model and composes pinned runtime a
 
 | Component | Immutable source |
 |---|---|
-| Served model | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@4967efc3cf349681f208f217e29d29c11c9b0c45` |
+| Served model | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@8c02fb69a03ef86f0d1f9f0b607002c46102538c` |
 | Model source | `zai-org/GLM-5.3-Flash-BF16@f12e0fe1f6b2ea274c11a569582edfd99d993c5e` |
-| GPTQModel writer fork | `tpurtell/GPTQModel@0565af7ce20a93df9bbc0e5563d7c6f60916f41a` |
+| GPTQModel writer fork | `tpurtell/GPTQModel@a64900815b30ef01c2221b2788701a7986e50491` |
 | GLM/vLLM base | `cstechdev/vllm:glm53-flash-nope-sm120-cu130-20260826-r1@sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5` |
 | vLLM in base | `0.1.dev20051+g487ecf187` |
 | EXL3 runtime source image | `ghcr.io/tpurtell/deepseek-v4-flash-0731-exl3-k2-spark@sha256:86c8c1054f9c24454949e37031ce6165c007963aa0c0ef30fa884f6d4170af32` |
@@ -20,7 +20,12 @@ This recipe consumes a finished Hugging Face model and composes pinned runtime a
 
 ## Model identity
 
-The public model repository contains 33 files and 137,163,572,791 bytes at the pinned revision. Its model index SHA-256 is `d751549235ef63d1954be328754e001c8e488795ed4c2ef6d5b0e4a2dc08f0dc`; the complete local-file census SHA-256 is `bf4e5d2914f6414660502f39e6f933a019d77146899cd05d1e7438d8f776f6bb`; and the final release-validation SHA-256 is `625dcdfc8a031506d1406804cc72b7373c600567e076220b756f9504bc0fd284`.
+The public model repository contains 33 files and 137,128,503,398 bytes at the pinned revision. Its model index SHA-256 is `d751549235ef63d1954be328754e001c8e488795ed4c2ef6d5b0e4a2dc08f0dc`; the complete local-file census SHA-256 is `5685313044e9d2d9e108f482b8788a2ca808f2820f1e0846504a4de6ed3be471`; and the final release-validation SHA-256 is `625dcdfc8a031506d1406804cc72b7373c600567e076220b756f9504bc0fd284`.
+
+Revision `8c02fb6…` is a config-only repair over the originally qualified
+`4967efc…` revision. It removes the duplicate 32.8 MB EXL3 `tensor_storage`
+map from `config.json`; the complete map remains in the external quantization
+manifests, and all 16 weight shards are unchanged.
 
 Before upload, that exact model index passed ordinary vLLM generation and five representative tool-call scenarios in the same runtime image used for qualification. After upload, the public revision was verified file-for-file. The full 69-case evaluation in this repository then exercised the published model ID through the final adaptive-MTP launcher.
 
