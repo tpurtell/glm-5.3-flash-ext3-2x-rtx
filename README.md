@@ -1,27 +1,29 @@
-# GLM-5.3 Flash EXL3 K3 on 2× RTX PRO 6000
+# GLM-5.3 Flash EXL3 + DFlash2 on 2× RTX PRO 6000
 
-Half a million tokens, two Blackwells, and very little patience for generic kernels.
+One million tokens, sixteen images, and a speculative drafter with somewhere useful to be.
 
-This recipe serves [`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1`](https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1) with a patched vLLM runtime on two PCIe-connected SM120 GPUs. It only consumes the finished Hugging Face quant; quantization code and intermediate artifacts do not live in this repository.
+This recipe serves [`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1`](https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1) with [`incoai/GLM-5.3-Flash-DFlash2`](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2) on two PCIe-connected SM120 GPUs. It consumes the finished Hugging Face quant; quantization code and intermediate artifacts deliberately live elsewhere.
 
-The default is the fun profile: NVFP4 MLA cache, DCP2, request-local adaptive MTP K1…K5, compact ReplaySSM rollback, 16 scheduler slots, a 500,000-token model limit, and every B12x path that won qualification on this machine.
+The default profile is DFlash2 K5, FP8 MLA cache, target DCP2, a replicated draft, 16 scheduler slots, vision for up to 16 images, a 1,048,576-token model limit, and the qualified B12x PCIe paths.
 
-## The good bits
+## The fun numbers
 
-| NVFP4 release highlight | Measured result |
+| DFlash2 + FP8 release highlight | Measured result |
 |---|---:|
-| 128K prefill, C1 | **4,415.5 prompt tok/s** |
-| Decode with adaptive MTP, C1 / C16 aggregate | **106.9 / 598.7 tok/s** |
-| Decode with MTP off, C1 / C16 aggregate | **71.4 / 561.3 tok/s** |
-| KV cache pool | **7,200,000 tokens** |
-| Exact uncached 128K retrieval | **pass** |
-| Full tool-use suite | **88/100**, 122/138 points, 0 transport errors |
+| Code-agent decode, C1 | **199.1 tok/s** |
+| Code-agent decode, C16 aggregate | **800.9 tok/s** |
+| 128K prefill, C1 | **4,382.1 prompt tok/s** |
+| Physical target-KV reservoir | **4,286,464 token slots** |
+| DFlash-aware full-request equivalent | **2,786,881 tokens** |
+| Exact cold 1M six-needle retrieval | **6/6 pass, 266.8 s** |
+| Vision contract | **16 images pass; image 17 rejected** |
+| Seven-workload GLMRT blend | **132.1 tok/s; 21/21 contracts pass** |
 
-These are steady-state medians. Prefill includes tokenization and time to first token; decode excludes TTFT and emits 128 tokens per sequence. C16 is aggregate throughput, not per-request throughput. See [the detailed results](benchmarks/RESULTS.md) for FP8, every prompt depth, C1–C16 curves, ranges, controls, tool-eval misses, and raw reports.
+The code-agent benchmark asks for a complete replacement of a buggy async Python task runner, emits 256 tokens per sequence, and measures pure decode from first to last streamed token. C16 is total throughput across 16 requests, not 800 tok/s per request. The 128K prefill figure includes server tokenization and time to first token. Full curves, ranges, acceptance, exact prompts, and raw reports are in [the detailed results](benchmarks/RESULTS.md).
 
 ## Quick start
 
-You need Linux/amd64, Docker with the NVIDIA Container Toolkit, two SM120 GPUs with about 96 GiB each, a CUDA 13-capable driver, about 145 GiB of free disk for the 127.30 GiB checkpoint, and the Hugging Face `hf` CLI.
+You need Linux/amd64, Docker with the NVIDIA Container Toolkit, two SM120 GPUs with about 96 GiB each, a CUDA 13-capable driver, about 150 GiB of model storage, and the Hugging Face `hf` CLI.
 
 ```bash
 git clone https://github.com/tpurtell/glm-5.3-flash-ext3-4-bit-2x-rtx.git
@@ -31,88 +33,77 @@ cd glm-5.3-flash-ext3-4-bit-2x-rtx
 docker logs -f glm53-flash-exl3-b12x-vllm
 ```
 
-The OpenAI-compatible endpoint appears at `http://127.0.0.1:8001/v1`. Cold startup loads 16 shards, profiles the real memory budget, then compiles and captures the useful B12x shapes.
+The OpenAI-compatible endpoint appears at `http://127.0.0.1:8001/v1`. Cold startup loads the target and 1B-parameter drafter, profiles the real memory budget, and compiles/captures the useful SM120 shapes.
 
 ```bash
 curl -s http://127.0.0.1:8001/v1/models | jq
 ./stop.sh
 ```
 
-To build locally instead of pulling the public GHCR package:
+To build locally instead of pulling the public GHCR image:
 
 ```bash
-IMAGE=glm53-exl3-k3-b12x:local ./build.sh
-IMAGE=glm53-exl3-k3-b12x:local ./start.sh
+IMAGE=glm53-dflash2:local IMAGE_VERSION=local ./build.sh
+IMAGE=glm53-dflash2:local ./start.sh
 ```
 
-## Defaults
+## Release defaults
 
 | Knob | Default | Purpose |
 |---|---:|---|
-| `KV_CACHE_PROFILE` | `nvfp4` | B12x compact 368-byte NoPE MLA records |
-| `DECODE_CONTEXT_PARALLEL_SIZE` | `2` | DCP2 shards long-context cache and attention work |
-| `MAX_MODEL_LEN` | `500000` | Qualified with both cache profiles |
+| `SPECULATIVE_METHOD` | `dflash2` | Use the DFlash2 block-diffusion drafter |
+| `DFLASH_TOKENS` | `5` | Best measured agent-workload compromise |
+| `DFLASH_KV_CACHE_DTYPE` | `bfloat16` | Quality-preserving cache for the small draft model |
+| `KV_CACHE_PROFILE` | `fp8` | Quality-leaning FP8 target MLA cache |
+| `DECODE_CONTEXT_PARALLEL_SIZE` | `2` | Shard target long-context cache and attention work |
+| `MAX_MODEL_LEN` | `1048576` | GLM-5.3 Flash architecture limit; cold 1M qualified |
 | `MAX_NUM_SEQS` | `16` | Qualified C16 decode fan-out |
-| `MAX_NUM_BATCHED_TOKENS` | `2048` | Good prefill throughput without wasting the memory pool |
-| `MTP_TOKENS` | `5` | Maximum adaptive draft depth |
-| `ADAPTIVE_MTP` | `1` | Re-estimate K throughout each request |
-| `ADAPTIVE_MTP_MIN_DEPTH` | `1` | The measured floor while MTP remains resident |
-| `USE_REPLAYSSM` | `1` | Compact KDA rollback instead of full state copies |
-| `REPLAYSSM_BUFFER_LEN` | `10` | Fits the speculative history in a 16-slot physical ring |
-| `GPU_MEMORY_UTILIZATION` | `0.950` | Qualified ceiling; the launcher never sneaks above it |
-| FlashInfer autotune | off | Avoids the unstable/unhelpful GLM SM12x tuning path |
+| `MAX_NUM_BATCHED_TOKENS` | `2048` | Qualified prefill chunk size |
+| `LIMIT_MM_PER_PROMPT` | `{"image":16}` | Enable and enforce the 16-image contract |
+| `GPU_MEMORY_UTILIZATION` | `0.950` | Qualified ceiling; the launcher does not exceed it |
+| FlashInfer autotune | off | Avoid the unhelpful/unstable GLM SM12x tuning path |
 
-`MAX_NUM_SEQS=16` is scheduler concurrency, not a promise that sixteen 500K prompts fit simultaneously. The default pool holds 14.40 request-equivalents at 500K; shorter agent turns can use all 16 slots.
+`MAX_NUM_SEQS=16` is scheduler capacity, not a claim that sixteen 1M prompts fit at once. The final DFlash2 profile reports two intentionally different capacity numbers:
 
-Adaptive MTP varies K *inside* a request. Each live request predicts its preferred depth from recent verification outcomes. Since vLLM drafts a fused batch together, the executed K is the half-up rounded arithmetic mean: predictions K5, K3, and K2 execute at `(5 + 3 + 2) / 3 → K3`. Finished requests do not leak policy state.
+- **4,286,464 physical target-KV token slots** = 598 shared pool blocks × 3,584 target tokens per rank × DCP2. This is the number comparable to the previous roughly 4.55M FP8 reservoir.
+- **2,786,881 full-request-equivalent tokens** is vLLM's conservative scheduler metric after the same shared block-ID pool also pays for recurrent state and per-request DFlash scratch. At the 1,048,576-token limit, that is **2.66×** maximum-length request capacity.
 
-The controls remain explicit:
+The local port gives the replicated DFlash attention group a 128-token allocation block instead of inheriting the target backend's generic 16-token page. That cuts its per-request block-ID tax from 257 to 33 while preserving the target's DCP2 cache geometry. It is why the final number is higher than the initial 1.16M estimate—but it cannot make DFlash scratch free.
 
-```bash
-MTP_TOKENS=0 ./start.sh                 # no speculative decoding
-ADAPTIVE_MTP=0 MTP_TOKENS=5 ./start.sh  # fixed K5
-ADAPTIVE_MTP_MIN_DEPTH=0 ./start.sh      # permit K0 probes
-USE_REPLAYSSM=0 MTP_TOKENS=5 ./start.sh # baseline full-state rollback
-ENABLE_PREFIX_CACHING=0 ./start.sh       # mamba cache mode none
-```
+## Profiles and controls
 
-For the quality-leaning cache profile:
+K5 is the default because it held roughly 199 tok/s at C1 while retaining strong loaded throughput. K3 is useful when aggregate C16 throughput matters more than single-request latency; K7 over-drafted on this hardware.
 
 ```bash
-KV_CACHE_PROFILE=fp8 ./start.sh
+DFLASH_TOKENS=3 ./start.sh             # loaded-throughput profile
+DFLASH_TOKENS=7 ./start.sh             # accepted, but not the measured winner
+SPECULATIVE_METHOD=none ./start.sh      # target-only control
+SPECULATIVE_METHOD=mtp ./start.sh       # request-local adaptive MTP K1…K5
+LANGUAGE_MODEL_ONLY=1 ./start.sh        # disable the vision path
+KV_CACHE_PROFILE=nvfp4 ./start.sh       # optional lower-precision target cache
 ```
 
-FP8 uses the same qualified 500K/2K/C16 geometry and allocates 4,553,846 cache tokens. It stores a 656-byte MLA record versus NVFP4's 368 bytes. NVFP4 therefore supplies 1.58× the measured pool and slightly faster long prefill; FP8 is retained as the less aggressive cache-quantization option. NVFP4 accepts a calibrated scales file through `VLLM_NVFP4_MLA_SCALES_FILE`; without one, startup discovers scales dynamically.
+Current vLLM DFlash2 executes one fixed K for the active fused batch. It does not yet expose request-local, within-request K adaptation like this recipe's alternate MTP controller. DFlash acceptance is very workload-dependent: K5 won the code-agent balance, while K3 won the C16 tuning point. A real adaptive DFlash policy needs to control the block-diffusion proposal/selector inside a request; swapping profiles only between requests would miss the point.
+
+Vision uses the official Z.ai multimodal processor and chat template restored in target revision `319d66a…`. The release test sent 16 generated numbered images and received the exact ordered list `1…16`; a 17-image request received HTTP 400. DFlash receives text-side draft inputs for multimodal requests while the target model performs the actual vision encoding and verification.
 
 ## What differs from stock vLLM
 
-This image is a deliberately pinned runtime composition, not a few launcher flags:
+This is a pinned runtime composition, not a lucky pile of launcher flags:
 
-- EXL3 K3 mixed-checkpoint loading for GLM routed experts and the MTP block, plus B12x decode and bounded tiled-prefill trellis paths.
-- GLM vector-gated KDA ReplaySSM with correct checkpoint, replay, verify, rejection, flush, and aligned-prefix materialization.
-- A power-of-two physical rollback ring and explicit projection strides; both fix real repetition/corruption failures in the initial port.
-- GLM MTP cache-group scoping and compact state accounting instead of five extra full recurrent-state pages at MTP5.
-- Request-local adaptive MTP with evidence epochs, conservative expansion, stale-feedback rejection, load-aware contraction, and arithmetic-mean batch execution.
-- The upstream dynamic-MTP CUDA-graph fix plus a local exclusion for ReplaySSM mixed prefill/decode batches, which are not valid static graph shapes.
-- A bounded 1,024-row EXL3 prefill arena. Exact tiling cut its persistent allocation from 1,822.3 to 310.1 MiB per GPU.
-- B12x sparse MLA, paged K-pool score/top-k, DCP2 global owner exchange, graph-admitted PCIe DCP A2A, PCIe one-shot TP all-reduce, GLM H64 query projection, and the batch-1 mHC fusion.
-- Correctness/performance admission gates: eager or large collective shapes fall back to vLLM/NCCL when the B12x path does not win.
+- The upstream vLLM DFlash2 implementation from PR #52816, ported onto the GLM day-zero branch.
+- GLM-5.3 EAGLE3/DFlash target taps after mHC, plus the GLM decoder-layer indirection needed by the drafter.
+- An independent DFlash KV group: the target remains DCP2 while the small dense draft attention/cache is correctly replicated at DCP1 on both ranks.
+- A 128-token replicated draft-cache allocation block and DFlash-aware target prefix hashes, avoiding waste and cross-group cache contamination.
+- EXL3 K3 mixed-checkpoint loading for GLM routed experts, plus B12x decode and bounded tiled-prefill trellis paths.
+- B12x sparse MLA, paged K-pool score/top-k, DCP2 global owner exchange, graph-admitted PCIe DCP A2A, PCIe one-shot TP all-reduce, GLM H64 query projection, and batch-1 mHC fusion.
+- Existing compact ReplaySSM and request-local adaptive MTP remain available as an alternate speculative method.
+- Correctness/performance admission gates keep eager or unprofitable shapes on vLLM/NCCL fallbacks.
 
-The image keeps the day-zero GLM base's Torch 2.13/CUDA 13 stack and applies these ports reproducibly at build time. The build probes the K3 loader, MTP mapping, ReplaySSM invariants, adaptive policy, compact cache layouts, B12x APIs, and pinned versions. [PROVENANCE.md](PROVENANCE.md) contains the immutable source chain and upstream references.
-
-## K4 remains an option
-
-The previous [`brandonmusic/GLM-5.3-Flash-EXL3-4bpw`](https://huggingface.co/brandonmusic/GLM-5.3-Flash-EXL3-4bpw) release remains usable for a quality/size trade-off. Its comparable tool suite scored 124/138 versus K3's 122/138, while K3 cuts the checkpoint to 127.30 GiB and unlocks the much larger cache pools above. The old K4 raw reports remain in `benchmarks/`; release `v0.3.0` preserves its original defaults.
-
-```bash
-MODEL_ID=brandonmusic/GLM-5.3-Flash-EXL3-4bpw \
-MODEL_REVISION=4739eb1bcfd478e8a32da6358908567bc3a9ac51 ./download.sh
-MODEL_ID=brandonmusic/GLM-5.3-Flash-EXL3-4bpw \
-MODEL_REVISION=4739eb1bcfd478e8a32da6358908567bc3a9ac51 ./start.sh
-```
+The build probes the DFlash2 architecture and V2 speculator, GLM EAGLE3 support, EXL3 loader, independent draft cache, ReplaySSM/adaptive-MTP invariants, B12x APIs, and pinned versions. [PROVENANCE.md](PROVENANCE.md) records the immutable source chain and upstream references.
 
 ## Thank you
 
-Huge thanks to **Brandon** for the quant work this release builds on. Thanks to **Z.ai** for GLM-5.3 Flash, **MiaAI-Lab** for the nearby dual-DGX-Spark SM121 reference and its SM12x lessons, **cstechdev** for the GLM day-zero image, the **vLLM** and **B12x/SparkInfer** contributors, and the ExLlamaV3 authors whose trellis work underpins EXL3. Special thanks as well to Jared and the other GLM upstream contributors credited by Z.ai's vLLM work.
+Huge thanks to **Brandon** for the quant work this release builds on. Thanks to **Inco AI / Z-Lab** for DFlash2, **Z.ai** for GLM-5.3 Flash, **MiaAI-Lab** for the nearby dual-DGX-Spark SM121 references, **cstechdev** for the GLM day-zero image, the **vLLM** and **B12x/SparkInfer** contributors, and the ExLlamaV3 authors whose trellis work underpins EXL3. Special thanks as well to Jared and the other GLM upstream contributors credited by Z.ai's vLLM work.
 
-Apache-2.0. Model and base-image licenses still apply.
+Recipe code is Apache-2.0. Model licenses still apply. In particular, the DFlash2 checkpoint is published under **CC BY-NC-ND 4.0 for research and evaluation**; contact Inco AI for commercial licensing.

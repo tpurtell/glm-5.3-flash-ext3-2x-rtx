@@ -1,0 +1,87 @@
+{
+  "schema": "glm53-cold-multi-needle.v1",
+  "passed": true,
+  "target_prompt_tokens": 1000000,
+  "nonce": "v05-final-k5-b128",
+  "cache_salt": "v05-final-k5-b128-cold",
+  "prompt_sha256": "14d5a1dccd2e5f3369741ed764e26491a3751d26393c084e97d73741c1ae6106",
+  "placements": [
+    {
+      "fraction": 0.05,
+      "key": "CINDER-05",
+      "value": "azurite-4831",
+      "token_offset_before_record": 50000
+    },
+    {
+      "fraction": 0.25,
+      "key": "JUNIPER-25",
+      "value": "topaz-7614",
+      "token_offset_before_record": 250000
+    },
+    {
+      "fraction": 0.5,
+      "key": "LANTERN-50",
+      "value": "cobalt-2097",
+      "token_offset_before_record": 500000
+    },
+    {
+      "fraction": 0.75,
+      "key": "MARBLE-75",
+      "value": "saffron-6382",
+      "token_offset_before_record": 750000
+    },
+    {
+      "fraction": 0.95,
+      "key": "ORBIT-95",
+      "value": "willow-1459",
+      "token_offset_before_record": 950000
+    },
+    {
+      "fraction": 0.99,
+      "key": "QUARTZ-99",
+      "value": "indigo-8726",
+      "token_offset_before_record": 990000
+    }
+  ],
+  "checks": [
+    {
+      "key": "CINDER-05",
+      "expected": "azurite-4831",
+      "passed": true
+    },
+    {
+      "key": "JUNIPER-25",
+      "expected": "topaz-7614",
+      "passed": true
+    },
+    {
+      "key": "LANTERN-50",
+      "expected": "cobalt-2097",
+      "passed": true
+    },
+    {
+      "key": "MARBLE-75",
+      "expected": "saffron-6382",
+      "passed": true
+    },
+    {
+      "key": "ORBIT-95",
+      "expected": "willow-1459",
+      "passed": true
+    },
+    {
+      "key": "QUARTZ-99",
+      "expected": "indigo-8726",
+      "passed": true
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 1000000,
+    "total_tokens": 1000128,
+    "completion_tokens": 128,
+    "prompt_tokens_details": null
+  },
+  "build_seconds": 3.983,
+  "request_seconds": 266.773,
+  "output": "CINDER-05=azurite-4831\nJUNIPER-25=topaz-7614\nLANTERN-50=cobalt-2097\nMARBLE-75=saffron-6382\nORBIT-95=willow-1459\nQUARTZ-99=indigo-8726\nEND OF ANSWER.</think>CINDER-05=azurite-4831\nJUNIPER-25=topaz-7614\nLANTERN-50=cobalt-2097\nMARBLE-75=saffron-638"
+}

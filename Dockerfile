@@ -10,6 +10,7 @@ FROM ${GLM_BASE_IMAGE}
 
 ARG B12X_REPOSITORY=https://github.com/tpurtell/sparkinfer-glmrt
 ARG B12X_COMMIT=988246c8b007c9c1c2006eb677f6fa4b26aeb561
+ARG DFLASH2_VLLM_COMMIT=b389ac29465b33f9e9c534df221ea3c129e9793f
 
 SHELL ["/bin/bash", "-c"]
 
@@ -81,6 +82,10 @@ COPY patches/port-glm53-mtp-prefix-cache.py /tmp/port-glm53-mtp-prefix-cache.py
 COPY patches/adaptive_mtp.py \
     /usr/local/lib/python3.12/dist-packages/vllm/v1/spec_decode/dynamic/adaptive_mtp.py
 COPY patches/port-adaptive-mtp-glm53.py /tmp/port-adaptive-mtp-glm53.py
+COPY patches/port-dflash2-glm53.py /tmp/port-dflash2-glm53.py
+COPY patches/port-dflash2-glm-eagle3.py /tmp/port-dflash2-glm-eagle3.py
+COPY patches/port-dflash2-glm-kv.py /tmp/port-dflash2-glm-kv.py
+COPY patches/port-dflash2-replicated-dcp.py /tmp/port-dflash2-replicated-dcp.py
 RUN python3 /tmp/port-exl3-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-exl3-mtp-glm53.py \
@@ -121,6 +126,32 @@ RUN cd /usr/local/lib/python3.12/dist-packages \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 -m compileall -q /usr/local/lib/python3.12/dist-packages/vllm
 
+# DFlash2 landed after the GLM day-zero branch diverged from vLLM main. Apply
+# that immutable upstream runtime delta after the local ReplaySSM/adaptive-MTP
+# series, which is the exact source shape qualified below. The port script
+# excludes tests and resolves two registration-only branch conflicts, then
+# guards the decoder-layer indirection fixed upstream after vLLM #53428.
+RUN DFLASH2_VLLM_COMMIT="${DFLASH2_VLLM_COMMIT}" python3 - <<'PY'
+import os
+import urllib.request
+
+commit = os.environ["DFLASH2_VLLM_COMMIT"]
+urllib.request.urlretrieve(
+    f"https://github.com/vllm-project/vllm/commit/{commit}.patch",
+    "/tmp/vllm-dflash2.patch",
+)
+PY
+RUN python3 /tmp/port-dflash2-glm53.py \
+      /usr/local/lib/python3.12/dist-packages/vllm \
+      /tmp/vllm-dflash2.patch \
+ && python3 /tmp/port-dflash2-glm-eagle3.py \
+      /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-dflash2-glm-kv.py \
+      /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-dflash2-replicated-dcp.py \
+      /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 -m compileall -q /usr/local/lib/python3.12/dist-packages/vllm
+
 ENV PYTHONPATH=/opt/b12x:/usr/local/lib/python3.12/dist-packages \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -153,8 +184,17 @@ from vllm.model_executor.layers.sparse_attn_indexer import SparseAttnIndexer
 from vllm.model_executor.layers.quantization import get_quantization_config
 from vllm.model_executor.layers.quantization.exl3 import Exl3Config
 from vllm.model_executor.layers.mamba.mamba_utils import MambaStateShapeCalculator
-from vllm.model_executor.models.interfaces import supports_replayssm
-from vllm.models.glm5next.nvidia.model import Glm5NextForConditionalGeneration
+from vllm.model_executor.models.qwen3_dflash import DFlashQwen3Model
+from vllm.model_executor.models.qwen3_dflash2 import (
+    DFlash2Qwen3DecoderLayer,
+    DFlash2Qwen3Model,
+)
+from vllm.model_executor.models.registry import ModelRegistry
+from vllm.model_executor.models.interfaces import supports_eagle3, supports_replayssm
+from vllm.models.glm5next.nvidia.model import (
+    Glm5NextForCausalLM,
+    Glm5NextForConditionalGeneration,
+)
 from vllm.third_party.flash_linear_attention.ops.kda_replayssm_spec_decode import (
     kda_replayssm_spec_decode,
     materialize_kda_replayssm_state,
@@ -163,6 +203,7 @@ from vllm.config.cache import CacheConfig
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE
 from vllm.v1.kv_cache_interface import MLAAttentionSpec
 from vllm.v1.spec_decode.dynamic.adaptive_mtp import AdaptiveMTPController
+from vllm.v1.worker.gpu.spec_decode.dflash2.speculator import DFlash2Speculator
 from vllm.v1.attention.backends.mla.b12x_mla_sparse import B12xMLASparseBackend
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
@@ -194,6 +235,22 @@ assert MambaStateShapeCalculator.replayssm_spec_ring_len(10, 5) == 16
 assert MambaStateShapeCalculator.replayssm_spec_ring_len(16, 5) == 32
 assert callable(kda_replayssm_spec_decode)
 assert callable(materialize_kda_replayssm_state)
+assert supports_eagle3(Glm5NextForCausalLM)
+assert supports_eagle3(Glm5NextForConditionalGeneration)
+assert "DFlash2DraftModel" in ModelRegistry.get_supported_archs()
+assert DFlash2Qwen3Model.decoder_layer_cls is DFlash2Qwen3DecoderLayer
+assert "self.decoder_layer_cls(" in Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/"
+    "qwen3_dflash.py"
+).read_text()
+replicated_dflash_port = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_cache_interface.py"
+).read_text()
+assert "dcp_shard_count_override" in replicated_dflash_port
+assert "sw_block_size = 128" in Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
+    "attention/attention.py"
+).read_text()
 adaptive_probe = AdaptiveMTPController(max_depth=5, probe_interval=4)
 assert adaptive_probe.select(["c1"], 1, 5) == 5
 assert adaptive_probe.select(["c8"], 8, 1) == 1
@@ -305,12 +362,13 @@ print("GLM-5.3 vLLM + EXL3 + B12x compatibility probe passed")
 PY
 
 LABEL org.opencontainers.image.source="https://github.com/tpurtell/glm-5.3-flash-ext3-4-bit-2x-rtx" \
-      org.opencontainers.image.description="GLM-5.3 Flash EXL3 K3 on 2x SM120: adaptive MTP, compact MLA, DCP2, and B12x PCIe kernels" \
+      org.opencontainers.image.description="GLM-5.3 Flash EXL3 K3 on 2x SM120: DFlash2, multimodal GLM, FP8 MLA, DCP2, and B12x PCIe kernels" \
       org.opencontainers.image.licenses="Apache-2.0" \
       io.tpurtell.b12x.source="https://github.com/tpurtell/sparkinfer-glmrt" \
       io.tpurtell.glm-base.digest="sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5" \
       io.tpurtell.exl3-source.digest="sha256:86c8c1054f9c24454949e37031ce6165c007963aa0c0ef30fa884f6d4170af32" \
       io.tpurtell.exl3-vllm.commit="30038602b71395f481ef4a6edfe4fcf8551d9c15" \
+      io.tpurtell.dflash2-vllm.commit="b389ac29465b33f9e9c534df221ea3c129e9793f" \
       io.tpurtell.b12x.commit="988246c8b007c9c1c2006eb677f6fa4b26aeb561"
 
 EXPOSE 8001

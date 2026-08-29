@@ -3,10 +3,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_ID="${MODEL_ID:-wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1}"
-MODEL_REVISION="${MODEL_REVISION:-8c02fb69a03ef86f0d1f9f0b607002c46102538c}"
+MODEL_REVISION="${MODEL_REVISION:-319d66a8b53092b491f698440ecea781e4ddd4e4}"
+DFLASH_MODEL_ID="${DFLASH_MODEL_ID:-incoai/GLM-5.3-Flash-DFlash2}"
+DFLASH_MODEL_REVISION="${DFLASH_MODEL_REVISION:-dc77ff1c99eeb2df044ee3d4f0094eb033fee410}"
 HF_CACHE_DIR="${HF_HOME:-${HOME}/.cache/huggingface}"
 MODEL_CACHE_NAME="models--${MODEL_ID//\//--}"
 MODEL_REPO_DIR="${MODEL_REPO_DIR:-${HF_CACHE_DIR}/hub/${MODEL_CACHE_NAME}}"
+DFLASH_CACHE_NAME="models--${DFLASH_MODEL_ID//\//--}"
+DFLASH_REPO_DIR="${DFLASH_REPO_DIR:-${HF_CACHE_DIR}/hub/${DFLASH_CACHE_NAME}}"
+DFLASH_MODEL_DIR="${DFLASH_REPO_DIR}/snapshots/${DFLASH_MODEL_REVISION}"
 MODEL_DIR_OVERRIDE="${MODEL_DIR_OVERRIDE:-}"
 if [[ -n "${MODEL_DIR_OVERRIDE}" ]]; then
   MODEL_DIR="$(realpath -e -- "${MODEL_DIR_OVERRIDE}")"
@@ -29,13 +34,19 @@ DCP_COMM_BACKEND="${DCP_COMM_BACKEND:-ag_rs}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-16}"
+SPECULATIVE_METHOD="${SPECULATIVE_METHOD:-dflash2}"
+DFLASH_TOKENS="${DFLASH_TOKENS:-5}"
+# DFlash2 uses ordinary non-causal attention, not the target model's MLA
+# cache.  Keep its tiny draft cache in BF16 when the target cache is FP8 MLA.
+DFLASH_KV_CACHE_DTYPE="${DFLASH_KV_CACHE_DTYPE:-bfloat16}"
 MTP_TOKENS="${MTP_TOKENS:-5}"
 ADAPTIVE_MTP="${ADAPTIVE_MTP:-1}"
 ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH:-1}"
 MTP_BATCH_SCHEDULE="${MTP_BATCH_SCHEDULE:-}"
 USE_REPLAYSSM="${USE_REPLAYSSM:-1}"
 REPLAYSSM_BUFFER_LEN="${REPLAYSSM_BUFFER_LEN:-10}"
-LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-1}"
+LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-0}"
+LIMIT_MM_PER_PROMPT="${LIMIT_MM_PER_PROMPT:-{\"image\":16}}"
 ENABLE_PREFIX_CACHING="${ENABLE_PREFIX_CACHING:-1}"
 MAX_CUDAGRAPH_CAPTURE_SIZE="${MAX_CUDAGRAPH_CAPTURE_SIZE:-}"
 if [[ -v KV_CACHE_PROFILE ]]; then
@@ -44,19 +55,19 @@ elif [[ "${KV_CACHE_DTYPE:-}" == fp8_ds_mla ]]; then
   # Preserve the original KV_CACHE_DTYPE override as a convenient shorthand.
   KV_CACHE_PROFILE=fp8
 else
-  KV_CACHE_PROFILE=nvfp4
+  KV_CACHE_PROFILE=fp8
 fi
 case "${KV_CACHE_PROFILE}" in
   nvfp4)
     PROFILE_KV_CACHE_DTYPE=nvfp4_ds_mla
     PROFILE_GPU_MEMORY_UTILIZATION=0.950
-    PROFILE_MAX_MODEL_LEN=500000
+    PROFILE_MAX_MODEL_LEN=1048576
     PROFILE_MAX_NUM_BATCHED_TOKENS=2048
     ;;
   fp8)
     PROFILE_KV_CACHE_DTYPE=fp8_ds_mla
     PROFILE_GPU_MEMORY_UTILIZATION=0.950
-    PROFILE_MAX_MODEL_LEN=500000
+    PROFILE_MAX_MODEL_LEN=1048576
     PROFILE_MAX_NUM_BATCHED_TOKENS=2048
     ;;
   *)
@@ -98,6 +109,17 @@ if [[ $# -ne 0 ]]; then
   echo "Use environment variables for overrides; positional arguments are not supported." >&2
   exit 1
 fi
+case "${SPECULATIVE_METHOD}" in
+  dflash2|mtp|none) ;;
+  *)
+    echo "SPECULATIVE_METHOD must be dflash2, mtp, or none; got: ${SPECULATIVE_METHOD}" >&2
+    exit 2
+    ;;
+esac
+if [[ ! "${DFLASH_TOKENS}" =~ ^[1-7]$ ]]; then
+  echo "DFLASH_TOKENS must be between 1 and the checkpoint maximum of 7; got: ${DFLASH_TOKENS}" >&2
+  exit 2
+fi
 if [[ ! "${MTP_TOKENS}" =~ ^[0-9]+$ ]]; then
   echo "MTP_TOKENS must be a non-negative integer; got: ${MTP_TOKENS}" >&2
   exit 2
@@ -106,18 +128,22 @@ if [[ "${ADAPTIVE_MTP}" != 0 && "${ADAPTIVE_MTP}" != 1 ]]; then
   echo "ADAPTIVE_MTP must be 0 or 1; got: ${ADAPTIVE_MTP}" >&2
   exit 2
 fi
-if [[ "${ADAPTIVE_MTP}" == 1 && "${MTP_TOKENS}" == 0 ]]; then
+if [[ "${SPECULATIVE_METHOD}" == mtp && "${MTP_TOKENS}" == 0 ]]; then
+  echo "SPECULATIVE_METHOD=mtp requires MTP_TOKENS to be positive" >&2
+  exit 2
+fi
+if [[ "${SPECULATIVE_METHOD}" == mtp && "${ADAPTIVE_MTP}" == 1 && "${MTP_TOKENS}" == 0 ]]; then
   echo "ADAPTIVE_MTP=1 requires MTP_TOKENS to be positive" >&2
   exit 2
 fi
-if [[ "${ADAPTIVE_MTP}" == 1 ]]; then
+if [[ "${SPECULATIVE_METHOD}" == mtp && "${ADAPTIVE_MTP}" == 1 ]]; then
   if [[ ! "${ADAPTIVE_MTP_MIN_DEPTH}" =~ ^[0-9]+$ ]] || \
      (( ADAPTIVE_MTP_MIN_DEPTH > MTP_TOKENS )); then
     echo "ADAPTIVE_MTP_MIN_DEPTH must be between 0 and MTP_TOKENS; got: ${ADAPTIVE_MTP_MIN_DEPTH}" >&2
     exit 2
   fi
 fi
-if [[ "${ADAPTIVE_MTP}" == 1 && -z "${MTP_BATCH_SCHEDULE}" ]]; then
+if [[ "${SPECULATIVE_METHOD}" == mtp && "${ADAPTIVE_MTP}" == 1 && -z "${MTP_BATCH_SCHEDULE}" ]]; then
   # Include every K=0..5 in graph preparation. The schedule supplies only
   # initial priors; request-local feedback takes over after initialization,
   # and the production K1 floor clamps the high-load K0 prior by default.
@@ -136,15 +162,21 @@ if [[ ! "${MAX_NUM_SEQS}" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 if [[ -z "${MAX_CUDAGRAPH_CAPTURE_SIZE}" ]]; then
-  if [[ "${ADAPTIVE_MTP}" == 1 ]]; then
+  if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
+    # DFlash2 verifies one target token plus the configured parallel draft
+    # block per request. Capture the complete configured C16 shape.
+    MAX_CUDAGRAPH_CAPTURE_SIZE=$((MAX_NUM_SEQS * (DFLASH_TOKENS + 1)))
+  elif [[ "${SPECULATIVE_METHOD}" == mtp && "${ADAPTIVE_MTP}" == 1 ]]; then
     # Capturing the full C16 x (K5 + target) shape costs enough graph memory
-    # to push the 500K NVFP4 profile just below its advertised KV capacity.
+    # to reduce the long-context NVFP4 pool below its advertised capacity.
     # K4/K5 at C16 is a losing regime on this hardware anyway; the controller
     # normally contracts it, and vLLM safely falls back above this ceiling.
     # 64 still captures C16/K3 and every C1..C8/K5 execution shape.
     MAX_CUDAGRAPH_CAPTURE_SIZE=64
-  else
+  elif [[ "${SPECULATIVE_METHOD}" == mtp ]]; then
     MAX_CUDAGRAPH_CAPTURE_SIZE=$((MAX_NUM_SEQS * (MTP_TOKENS + 1)))
+  else
+    MAX_CUDAGRAPH_CAPTURE_SIZE="${MAX_NUM_SEQS}"
   fi
 fi
 if [[ ! "${MAX_CUDAGRAPH_CAPTURE_SIZE}" =~ ^[1-9][0-9]*$ ]]; then
@@ -185,6 +217,52 @@ if [[ ! -f "${MODEL_DIR}/quantization_config.json" ]]; then
   echo "EXL3 tensor manifest is missing: ${MODEL_DIR}/quantization_config.json" >&2
   exit 1
 fi
+if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
+  if [[ ! -f "${DFLASH_MODEL_DIR}/config.json" || \
+        ! -f "${DFLASH_MODEL_DIR}/model.safetensors" ]]; then
+    echo "Pinned DFlash2 snapshot is missing: ${DFLASH_MODEL_DIR}" >&2
+    echo "Run ${SCRIPT_DIR}/download.sh first." >&2
+    exit 1
+  fi
+  python3 - "${DFLASH_MODEL_DIR}" "${DFLASH_TOKENS}" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+tokens = int(sys.argv[2])
+config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+if config.get("architectures") != ["DFlash2DraftModel"]:
+    raise SystemExit("draft checkpoint is not the pinned DFlash2 architecture")
+dflash = config.get("dflash_config") or {}
+block_size = int(dflash.get("block_size", 0))
+if block_size != 8 or tokens >= block_size:
+    raise SystemExit(
+        f"DFlash2 checkpoint expects block_size=8 and at most 7 drafts; "
+        f"got block_size={block_size}, drafts={tokens}"
+    )
+if not dflash.get("target_layer_ids") or dflash.get("mask_token_id") is None:
+    raise SystemExit("DFlash2 checkpoint is missing target taps or mask token")
+print(f"Validated DFlash2 K{tokens} draft checkpoint")
+PY
+fi
+if [[ "${LANGUAGE_MODEL_ONLY}" == 0 ]]; then
+  python3 - "${LIMIT_MM_PER_PROMPT}" <<'PY'
+import json
+import sys
+
+limits = json.loads(sys.argv[1])
+if not isinstance(limits, dict) or limits.get("image") != 16:
+    raise SystemExit(
+        "LIMIT_MM_PER_PROMPT must be a JSON object allowing exactly 16 images "
+        "for the qualified release profile"
+    )
+PY
+  if [[ ! -f "${MODEL_DIR}/processor_config.json" ]]; then
+    echo "GLM multimodal processor metadata is missing: ${MODEL_DIR}/processor_config.json" >&2
+    exit 1
+  fi
+fi
 if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
   printf 'Pulling %s...\n' "${IMAGE}"
   docker pull "${IMAGE}"
@@ -205,7 +283,20 @@ if [[ "${ENABLE_PCIE_ALLREDUCE}" == 0 ]]; then
 fi
 
 SPECULATIVE_ARGS=()
-if (( MTP_TOKENS > 0 )); then
+case "${SPECULATIVE_METHOD}" in
+dflash2)
+  SPECULATIVE_CONFIG="$(python3 -c '
+import json, sys
+print(json.dumps({
+    "method": "dflash",
+    "model": sys.argv[1],
+    "num_speculative_tokens": int(sys.argv[2]),
+    "kv_cache_dtype": sys.argv[3],
+}, separators=(",", ":")))
+' "/draft-repo/snapshots/${DFLASH_MODEL_REVISION}" "${DFLASH_TOKENS}" "${DFLASH_KV_CACHE_DTYPE}")"
+  SPECULATIVE_ARGS+=(--speculative-config "${SPECULATIVE_CONFIG}")
+  ;;
+mtp)
   SPECULATIVE_CONFIG="{\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_TOKENS}}"
   if [[ -n "${MTP_BATCH_SCHEDULE}" ]]; then
     SPECULATIVE_CONFIG="$(python3 -c '
@@ -229,12 +320,26 @@ print(json.dumps({
       --replayssm-buffer-len "${REPLAYSSM_BUFFER_LEN}"
     )
   fi
+  ;;
+none) ;;
+esac
+
+RUNTIME_ADAPTIVE_MTP=0
+if [[ "${SPECULATIVE_METHOD}" == mtp ]]; then
+  RUNTIME_ADAPTIVE_MTP="${ADAPTIVE_MTP}"
+fi
+
+DRAFT_MOUNT_ARGS=()
+if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
+  DRAFT_MOUNT_ARGS+=(--volume "${DFLASH_REPO_DIR}:/draft-repo:ro")
 fi
 
 MODEL_MODE_ARGS=()
 if [[ "${LANGUAGE_MODEL_ONLY}" == 1 ]]; then
   MODEL_MODE_ARGS+=(--language-model-only)
-elif [[ "${LANGUAGE_MODEL_ONLY}" != 0 ]]; then
+elif [[ "${LANGUAGE_MODEL_ONLY}" == 0 ]]; then
+  MODEL_MODE_ARGS+=(--limit-mm-per-prompt "${LIMIT_MM_PER_PROMPT}")
+else
   echo "LANGUAGE_MODEL_ONLY must be 0 or 1; got: ${LANGUAGE_MODEL_ONLY}" >&2
   exit 2
 fi
@@ -263,7 +368,7 @@ docker run --detach \
   --env CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}" \
   --env TORCH_SHOW_CPP_STACKTRACES="${TORCH_SHOW_CPP_STACKTRACES:-0}" \
   --env VLLM_ENGINE_READY_TIMEOUT_S="${VLLM_ENGINE_READY_TIMEOUT_S:-3600}" \
-  --env VLLM_ADAPTIVE_MTP="${ADAPTIVE_MTP}" \
+  --env VLLM_ADAPTIVE_MTP="${RUNTIME_ADAPTIVE_MTP}" \
   --env VLLM_ADAPTIVE_MTP_HISTORY="${VLLM_ADAPTIVE_MTP_HISTORY:-16}" \
   --env VLLM_ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH}" \
   --env VLLM_ADAPTIVE_MTP_DECISION_WINDOW="${VLLM_ADAPTIVE_MTP_DECISION_WINDOW:-8}" \
@@ -299,6 +404,7 @@ docker run --detach \
   --env VLLM_B12X_GLM_H64_QUERY_PROJ="${VLLM_B12X_GLM_H64_QUERY_PROJ:-auto}" \
   --env VLLM_USE_B12X_MHC="${VLLM_USE_B12X_MHC:-auto}" \
   --volume "${MODEL_MOUNT_SOURCE}:${MODEL_MOUNT_TARGET}:ro" \
+  "${DRAFT_MOUNT_ARGS[@]}" \
   --volume "${CACHE_DIR}:/root/.cache" \
   "${IMAGE}" \
   "${MODEL_CONTAINER_DIR}" \
@@ -329,7 +435,11 @@ printf 'Started %s on http://127.0.0.1:%s/v1. Initial B12x/CuTe compilation can 
 printf 'Profile: %s, KV cache: %s, max length: %s, max sequences: %s, GPU memory utilization: %s\n' \
   "${KV_CACHE_PROFILE}" "${KV_CACHE_DTYPE}" "${MAX_MODEL_LEN}" "${MAX_NUM_SEQS}" \
   "${GPU_MEMORY_UTILIZATION}"
-if (( MTP_TOKENS > 0 )); then
+if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
+  printf 'Speculation: DFlash2 K%s, %s draft KV, from %s@%s\n' \
+    "${DFLASH_TOKENS}" "${DFLASH_KV_CACHE_DTYPE}" \
+    "${DFLASH_MODEL_ID}" "${DFLASH_MODEL_REVISION}"
+elif [[ "${SPECULATIVE_METHOD}" == mtp ]]; then
   if [[ "${USE_REPLAYSSM}" == 1 ]]; then
     printf 'MTP: %s tokens with compact KDA ReplaySSM (buffer %s)\n' \
       "${MTP_TOKENS}" "${REPLAYSSM_BUFFER_LEN}"
@@ -346,6 +456,11 @@ if (( MTP_TOKENS > 0 )); then
     printf 'MTP policy: static K=%s\n' "${MTP_TOKENS}"
   fi
 else
-  printf 'MTP: disabled\n'
+  printf 'Speculation: disabled\n'
+fi
+if [[ "${LANGUAGE_MODEL_ONLY}" == 0 ]]; then
+  printf 'Vision: enabled with per-prompt limits %s\n' "${LIMIT_MM_PER_PROMPT}"
+else
+  printf 'Vision: disabled (language-model-only mode)\n'
 fi
 printf 'Follow startup: docker logs -f %s\n' "${CONTAINER_NAME}"

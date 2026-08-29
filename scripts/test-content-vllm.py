@@ -136,8 +136,18 @@ def validate_case_content(case_id: str, content: str) -> dict:
             if term not in lowered:
                 issues.append(f"response omits {term}")
     elif case_id == "structured-json":
+        json_text = stripped
+        fenced = re.fullmatch(
+            r"```(?:json)?\s*\n(?P<json>.*)\n```",
+            stripped,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if fenced is not None:
+            # GLM sometimes wraps an otherwise exact object in a JSON fence.
+            # Treat that as a presentation quirk, not a semantic failure.
+            json_text = fenced.group("json")
         try:
-            value = json.loads(stripped)
+            value = json.loads(json_text)
         except json.JSONDecodeError:
             issues.append("response is not bare valid JSON")
         else:
