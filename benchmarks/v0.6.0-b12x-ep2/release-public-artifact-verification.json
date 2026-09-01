@@ -1,0 +1,53 @@
+{
+  "schema": "glm53-public-artifact-verification.v1",
+  "checked_at": "2026-09-01T02:34:00Z",
+  "source": {
+    "repository": "https://github.com/tpurtell/glm-5.3-flash-ext3-4-bit-2x-rtx",
+    "branch": "release/v0.6.0-b12x-ep2",
+    "clean_clone_commit": "d6fbe22f2c825974b4276cc308937b5b7e5f7fbe"
+  },
+  "container": {
+    "tag": "ghcr.io/tpurtell/glm-5.3-flash-exl3-4bpw-2x-rtx:v0.6.0",
+    "latest_tag": "ghcr.io/tpurtell/glm-5.3-flash-exl3-4bpw-2x-rtx:latest",
+    "anonymous_pull": true,
+    "index_digest": "sha256:fe249b88d091430d8a88cd987d087d556053f0f067a649f2e9ca95895129e82b",
+    "amd64_manifest_digest": "sha256:4858ebdbc1e313e7024242fc246c90ceb0754fec2f46a0b997c02a985f2d75f7",
+    "config_digest": "sha256:710550e1b5a6acbccc76010c4b33eb3776c326ac572385f588916c93046b849c",
+    "attestation_manifest_digest": "sha256:3dd4de04490791600d7cce198deba6280b8e5d1e223f688b18e80c4e4110be2c",
+    "embedded_source_revision": "d6fbe22f2c825974b4276cc308937b5b7e5f7fbe",
+    "embedded_b12x_revision": "611ffe8712e40e9ed0110e3cfb1d0b7f4580e631",
+    "version_and_latest_match": true
+  },
+  "hugging_face": {
+    "target_revision": "319d66a8b53092b491f698440ecea781e4ddd4e4",
+    "target_files_verified": 35,
+    "draft_revision": "dc77ff1c99eeb2df044ee3d4f0094eb033fee410",
+    "draft_files_verified": 4,
+    "download_script_exit_code": 0,
+    "reused_existing_weight_blobs": true
+  },
+  "fresh_cache_start": {
+    "cache_absent_before_start": true,
+    "container_started_at": "2026-09-01T02:18:27.664186568Z",
+    "ready_marker_at": "2026-09-01T02:25:33.934522738Z",
+    "seconds_to_release_ready": 426.270,
+    "health_at_audit": "healthy",
+    "content_contracts_passed": 7,
+    "content_contracts_total": 7,
+    "post_ready_jit_count": 0,
+    "power_limit_w_per_gpu": 400,
+    "note": "One post-ready frontend 404 came from an initial test-harness base URL that produced /v1/tokenize; the corrected content run passed and no inference or JIT work was triggered by that 404."
+  },
+  "existing_cache_restart": {
+    "reused_fresh_cache": true,
+    "container_started_at": "2026-09-01T02:26:38.574713660Z",
+    "ready_marker_at": "2026-09-01T02:32:41.088027135Z",
+    "seconds_to_release_ready": 362.513,
+    "health_at_audit": "healthy",
+    "content_contracts_passed": 7,
+    "content_contracts_total": 7,
+    "post_ready_jit_count": 0,
+    "power_limit_w_per_gpu": 400
+  },
+  "passed": true
+}

@@ -72,10 +72,24 @@ covering C16, deterministic content, rendered chat, tools, and vision produced
 zero post-ready JIT warnings. This is a lifecycle gate, not substituted into
 the same-run C1–C16 headline curve.
 
+The published `v0.6.0` image was then pulled anonymously and launched from a
+clean public-repository clone. A genuinely absent vLLM cache reached the
+release-ready marker in 426.3 seconds; a restart against the populated cache
+did so in 362.5 seconds. TileLang still forms its process-local mHC modules on
+restart, so the cached boot is intentionally not described as instant. Both
+boots stayed unready until warmup completed, passed 7/7 post-ready content
+contracts, and recorded zero post-ready JIT. The public image index is
+`sha256:fe249b88d091430d8a88cd987d087d556053f0f067a649f2e9ca95895129e82b`.
+
 Raw receipts: [release curve](v0.6.0-b12x-ep2/release-code-agent-curve.json),
 [telemetry](v0.6.0-b12x-ep2/release-code-agent-curve.telemetry.json),
 [post-ready C16](v0.6.0-b12x-ep2/release-dev11-c16-post-ready.json), and
 [startup/JIT audit](v0.6.0-b12x-ep2/release-dev11-startup-jit-audit.json).
+Public artifact receipts: [summary](v0.6.0-b12x-ep2/release-public-artifact-verification.json),
+[fresh-cache audit](v0.6.0-b12x-ep2/release-public-fresh-startup-jit-audit.json),
+[fresh-cache content](v0.6.0-b12x-ep2/release-public-fresh-content.jsonl),
+[existing-cache audit](v0.6.0-b12x-ep2/release-public-existing-startup-jit-audit.json),
+and [existing-cache content](v0.6.0-b12x-ep2/release-public-existing-content.jsonl).
 
 ### DFlash verification accounting
 

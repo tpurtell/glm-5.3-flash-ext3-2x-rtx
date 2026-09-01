@@ -21,6 +21,24 @@ This recipe consumes finished Hugging Face target and draft checkpoints and comp
 | Dynamic-MTP graph fix | vLLM PR `#49652`, ported onto the pinned vLLM commit |
 | Runtime stack | Torch 2.13, CUDA 13, CUTLASS DSL 4.6.2 |
 
+## Published release artifacts
+
+The public `v0.6.0` and `latest` container tags resolve to the same immutable
+OCI index:
+
+| Artifact | Immutable identity |
+|---|---|
+| Recipe image | `ghcr.io/tpurtell/glm-5.3-flash-exl3-4bpw-2x-rtx:v0.6.0@sha256:fe249b88d091430d8a88cd987d087d556053f0f067a649f2e9ca95895129e82b` |
+| Linux/amd64 manifest | `sha256:4858ebdbc1e313e7024242fc246c90ceb0754fec2f46a0b997c02a985f2d75f7` |
+| Image config | `sha256:710550e1b5a6acbccc76010c4b33eb3776c326ac572385f588916c93046b849c` |
+| Build/source revision | `d6fbe22f2c825974b4276cc308937b5b7e5f7fbe` |
+
+An anonymous GHCR pull resolved that index successfully. Its OCI labels pin
+the source revision above, B12x `611ffe8…`, DFlash2/vLLM `b389ac2…`, and
+version `v0.6.0`. The Git release tag includes this post-build provenance and
+clean-start evidence; the serving code in that tag is unchanged from the
+embedded image source revision.
+
 The DFlash2 checkpoint is a 1B-parameter BF16 draft model and is not a standalone language model. Inco AI publishes it under CC BY-NC-ND 4.0 for research and evaluation; commercial use requires separate licensing. The target model and base-image licenses also apply independently of this Apache-2.0 recipe.
 
 ## Target identity and metadata repair
@@ -137,6 +155,12 @@ The published target revision was exercised through the normal launcher rather t
 - One cold exact 1,000,000-token request with six successful needles from 50K through 990K.
 - A post-1M C16 soak and final-image readiness audit with 30 post-ready API
   requests and zero post-ready JIT warnings.
+- A public, anonymous image pull followed by a clean-clone launch from an
+  absent vLLM cache and a restart from that populated cache. Both became
+  healthy only after the release-ready marker, passed 7/7 deterministic
+  content contracts, and recorded zero post-ready JIT. The clean clone also
+  verified all 35 target and four draft files at their pinned public HF
+  revisions without redownloading the quant.
 
 Raw machine-readable artifacts live under
 `benchmarks/v0.6.0-b12x-ep2/`; [RESULTS.md](benchmarks/RESULTS.md) defines their
