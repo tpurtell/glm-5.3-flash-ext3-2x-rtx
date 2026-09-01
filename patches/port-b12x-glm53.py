@@ -24,6 +24,16 @@ def insert_after_once(path: Path, anchor: str, addition: str) -> None:
     replace_once(path, anchor, anchor + addition)
 
 
+def replace_exact_count(path: Path, old: str, new: str, expected: int) -> None:
+    text = path.read_text()
+    count = text.count(old)
+    if count != expected:
+        raise RuntimeError(
+            f"{path}: expected {expected} matches, found {count}: {old!r}"
+        )
+    path.write_text(text.replace(old, new))
+
+
 def port(root: Path) -> None:
     registry = root / "v1/attention/backends/registry.py"
     insert_after_once(
@@ -114,6 +124,15 @@ def port(root: Path) -> None:
     )
 
     indexer = root / "model_executor/layers/sparse_attn_indexer.py"
+    # The qualified source adapter predates B12x's public NSA -> DSA module
+    # rename.  Migrate every import, including the lazy scratch and top-k
+    # imports that are first exercised during vLLM's memory-profile forward.
+    replace_exact_count(
+        indexer,
+        "b12x.attention.nsa_indexer",
+        "b12x.attention.dsa_indexer",
+        12,
+    )
     replace_once(
         indexer,
         "from vllm.distributed import (\n"

@@ -178,7 +178,7 @@ def _merge_b12x_kpool_dcp_topk_by_owner(
     ):
         return False
 
-    from b12x.attention.nsa_indexer.tiled_topk import run_row_topk
+    from b12x.attention.dsa_indexer.tiled_topk import run_row_topk
 
     from vllm.v1.attention.backends.mla.b12x_dcp_topk import (
         triton_gather_dcp_topk_scores_and_globalize,

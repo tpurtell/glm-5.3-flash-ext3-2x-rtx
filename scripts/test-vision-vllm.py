@@ -117,13 +117,24 @@ def main() -> None:
         except urllib.error.HTTPError as exc:
             return exc.code, json.loads(exc.read().decode("utf-8", errors="replace"))
 
-    status, body = request(16)
-    if status != 200:
-        raise SystemExit(f"16-image request failed with HTTP {status}: {body}")
-    content = body["choices"][0]["message"].get("content") or ""
-    observed = [int(value) for value in re.findall(r"\d+", content)]
-    expected = list(range(1, 17))
-    sixteen_passed = observed == expected
+    supported = {}
+    for image_count in (1, 4, 16):
+        status, body = request(image_count)
+        if status != 200:
+            raise SystemExit(
+                f"{image_count}-image request failed with HTTP {status}: {body}"
+            )
+        content = body["choices"][0]["message"].get("content") or ""
+        observed = [int(value) for value in re.findall(r"\d+", content)]
+        expected = list(range(1, image_count + 1))
+        supported[str(image_count)] = {
+            "passed": observed == expected,
+            "status": status,
+            "expected": expected,
+            "observed": observed,
+            "response": content,
+            "usage": body.get("usage"),
+        }
 
     overflow_status, overflow_body = request(17)
     overflow_text = json.dumps(overflow_body, ensure_ascii=False)
@@ -132,20 +143,15 @@ def main() -> None:
     report = {
         "schema": "glm53-vllm-vision-limit.v1",
         "model": args.model,
-        "sixteen_images": {
-            "passed": sixteen_passed,
-            "status": status,
-            "expected": expected,
-            "observed": observed,
-            "response": content,
-            "usage": body.get("usage"),
-        },
+        "supported_image_counts": supported,
+        "sixteen_images": supported["16"],
         "seventeen_images_rejected": {
             "passed": overflow_passed,
             "status": overflow_status,
             "response": overflow_body,
         },
-        "passed": sixteen_passed and overflow_passed,
+        "passed": all(item["passed"] for item in supported.values())
+        and overflow_passed,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")

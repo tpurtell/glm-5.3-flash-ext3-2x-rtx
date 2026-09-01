@@ -1,0 +1,115 @@
+{
+  "schema": "glm53-b12x-pcie-allreduce.v1",
+  "hidden_size": 4096,
+  "max_bytes": 8388608,
+  "eager": [
+    {
+      "rows": 1,
+      "bytes": 8192,
+      "b12x_ms": 0.031806,
+      "pynccl_ms": 0.007195,
+      "speedup": 0.226
+    },
+    {
+      "rows": 2,
+      "bytes": 16384,
+      "b12x_ms": 0.031749,
+      "pynccl_ms": 0.007247,
+      "speedup": 0.228
+    },
+    {
+      "rows": 4,
+      "bytes": 32768,
+      "b12x_ms": 0.031007,
+      "pynccl_ms": 0.007174,
+      "speedup": 0.231
+    },
+    {
+      "rows": 8,
+      "bytes": 65536,
+      "b12x_ms": 0.031217,
+      "pynccl_ms": 0.007118,
+      "speedup": 0.228
+    },
+    {
+      "rows": 10,
+      "bytes": 81920,
+      "b12x_ms": 0.031216,
+      "pynccl_ms": 0.008099,
+      "speedup": 0.259
+    },
+    {
+      "rows": 16,
+      "bytes": 131072,
+      "b12x_ms": 0.031317,
+      "pynccl_ms": 0.01051,
+      "speedup": 0.336
+    },
+    {
+      "rows": 24,
+      "bytes": 196608,
+      "b12x_ms": 0.031112,
+      "pynccl_ms": 0.014388,
+      "speedup": 0.462
+    },
+    {
+      "rows": 32,
+      "bytes": 262144,
+      "b12x_ms": 0.030992,
+      "pynccl_ms": 0.016564,
+      "speedup": 0.534
+    },
+    {
+      "rows": 40,
+      "bytes": 327680,
+      "b12x_ms": 0.031163,
+      "pynccl_ms": 0.020727,
+      "speedup": 0.665
+    },
+    {
+      "rows": 48,
+      "bytes": 393216,
+      "b12x_ms": 0.031232,
+      "pynccl_ms": 0.023924,
+      "speedup": 0.766
+    },
+    {
+      "rows": 64,
+      "bytes": 524288,
+      "b12x_ms": 0.030852,
+      "pynccl_ms": 0.029398,
+      "speedup": 0.953
+    }
+  ],
+  "cuda_graph": [
+    {
+      "rows": 1,
+      "bytes": 8192,
+      "b12x_ms": 0.006148,
+      "pynccl_ms": 0.006684,
+      "speedup": 1.087
+    },
+    {
+      "rows": 10,
+      "bytes": 81920,
+      "b12x_ms": 0.008433,
+      "pynccl_ms": 0.009439,
+      "speedup": 1.119
+    },
+    {
+      "rows": 32,
+      "bytes": 262144,
+      "b12x_ms": 0.015373,
+      "pynccl_ms": 0.017809,
+      "speedup": 1.158
+    },
+    {
+      "rows": 64,
+      "bytes": 524288,
+      "b12x_ms": 0.024699,
+      "pynccl_ms": 0.03036,
+      "speedup": 1.229
+    }
+  ],
+  "alternating_graphs": "pass"
+}

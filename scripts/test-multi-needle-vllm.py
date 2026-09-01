@@ -34,6 +34,47 @@ def post(base_url: str, path: str, payload: dict, timeout: float) -> dict:
         return json.load(response)
 
 
+def stream_completion(
+    base_url: str, payload: dict, timeout: float
+) -> tuple[str, dict | None, float, float]:
+    """Return output, usage, TTFT, and total request time from an SSE stream."""
+    request = urllib.request.Request(
+        base_url.rstrip("/") + "/v1/completions",
+        data=json.dumps(payload, separators=(",", ":")).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    started = time.perf_counter()
+    first_token_at: float | None = None
+    output_parts: list[str] = []
+    usage: dict | None = None
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        for raw_line in response:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            event = json.loads(data)
+            if event.get("usage") is not None:
+                usage = event["usage"]
+            for choice in event.get("choices") or ():
+                text = choice.get("text") or ""
+                if text:
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter()
+                    output_parts.append(text)
+    finished = time.perf_counter()
+    if first_token_at is None:
+        raise RuntimeError("stream completed without an output token")
+    return (
+        "".join(output_parts),
+        usage,
+        first_token_at - started,
+        finished - started,
+    )
+
+
 def tokenize(base_url: str, model: str, prompt: str) -> list[int]:
     return post(
         base_url, "/tokenize", {"model": model, "prompt": prompt}, 600
@@ -149,20 +190,20 @@ def main() -> None:
         args.base_url, args.model, args.tokens, args.nonce
     )
     built = time.perf_counter()
-    result = post(
+    output, usage, ttft_seconds, request_seconds = stream_completion(
         args.base_url,
-        "/v1/completions",
         {
             "model": args.model,
             "prompt": prompt,
             "max_tokens": args.max_tokens,
             "temperature": 0,
             "cache_salt": cache_salt,
+            "stream": True,
+            "stream_options": {"include_usage": True},
         },
         args.timeout,
     )
     finished = time.perf_counter()
-    output = result["choices"][0].get("text") or ""
     checks = [
         {
             "key": key,
@@ -180,9 +221,14 @@ def main() -> None:
         "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
         "placements": placements,
         "checks": checks,
-        "usage": result.get("usage"),
+        "usage": usage,
         "build_seconds": round(built - started, 3),
-        "request_seconds": round(finished - built, 3),
+        "ttft_seconds": round(ttft_seconds, 3),
+        "stream_after_first_token_seconds": round(
+            request_seconds - ttft_seconds, 3
+        ),
+        "request_seconds": round(request_seconds, 3),
+        "wall_seconds_after_build": round(finished - built, 3),
         "output": output,
     }
     rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"

@@ -4,22 +4,20 @@ One million tokens, sixteen images, and a speculative drafter with somewhere use
 
 This recipe serves [`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1`](https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1) with [`incoai/GLM-5.3-Flash-DFlash2`](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2) on two PCIe-connected SM120 GPUs. It consumes the finished Hugging Face quant; quantization code and intermediate artifacts deliberately live elsewhere.
 
-The default profile is DFlash2 K5, FP8 MLA cache, target DCP2, a replicated draft, 16 scheduler slots, vision for up to 16 images, a 1,048,576-token model limit, and the qualified B12x PCIe paths.
+The default profile is DFlash2 K5, FP8 MLA cache, TP2+EP2, target DCP2, a replicated draft, 16 scheduler slots, vision for up to 16 images, a 1,048,576-token model limit, and the qualified B12x PCIe paths.
 
 ## The fun numbers
 
 | DFlash2 + FP8 release highlight | Measured result |
 |---|---:|
-| Code-agent decode, C1 | **199.1 tok/s** |
-| Code-agent decode, C16 aggregate | **800.9 tok/s** |
-| 128K prefill, C1 | **4,382.1 prompt tok/s** |
-| Physical target-KV reservoir | **4,286,464 token slots** |
-| DFlash-aware full-request equivalent | **2,786,881 tokens** |
-| Exact cold 1M six-needle retrieval | **6/6 pass, 266.8 s** |
+| Code-agent decode, C1 | **222.6 tok/s** |
+| Code-agent decode, C16 | **1,067.2 tok/s aggregate / 66.7 per request** |
+| 128K prefill, C1 | **4,270.1 prompt tok/s** |
+| DFlash-aware FP8 KV capacity | **2,912,711 request-equivalent tokens** |
+| Exact cold 1M six-needle retrieval | **6/6 pass, 260.8 s** |
 | Vision contract | **16 images pass; image 17 rejected** |
-| Seven-workload GLMRT blend | **132.1 tok/s; 21/21 contracts pass** |
 
-The code-agent benchmark asks for a complete replacement of a buggy async Python task runner, emits 256 tokens per sequence, and measures pure decode from first to last streamed token. C16 is total throughput across 16 requests, not 800 tok/s per request. The 128K prefill figure includes server tokenization and time to first token. Full curves, ranges, acceptance, exact prompts, and raw reports are in [the detailed results](benchmarks/RESULTS.md).
+All published performance measurements used a **400 W power limit per GPU**. The code-agent benchmark asks for a complete replacement of a buggy async Python task runner, emits 256 tokens per sequence, and sums each request's first-to-last-token pure-decode rate. Prefill/TTFT is excluded from decode; the conservative whole-batch window is retained in the detailed report. The 128K prefill figure includes server tokenization and time to first token. Full curves, variance, acceptance, target-pass efficiency, methodology, and raw receipts are in [the detailed results](benchmarks/RESULTS.md).
 
 ## Quick start
 
@@ -33,7 +31,7 @@ cd glm-5.3-flash-ext3-4-bit-2x-rtx
 docker logs -f glm53-flash-exl3-b12x-vllm
 ```
 
-The OpenAI-compatible endpoint appears at `http://127.0.0.1:8001/v1`. Cold startup loads the target and 1B-parameter drafter, profiles the real memory budget, and compiles/captures the useful SM120 shapes.
+The OpenAI-compatible endpoint appears at `http://127.0.0.1:8001/v1`. Cold startup loads the target and 1B-parameter drafter, profiles the real memory budget, and compiles/captures the useful SM120 shapes. Docker reports the container healthy only after raw-greedy C1, rendered-chat C1, long-prefill, and four sampled C16 passes have exercised the release traffic shapes. The final gate was followed by 30 real API requests with zero post-ready kernel compilation.
 
 ```bash
 curl -s http://127.0.0.1:8001/v1/models | jq
@@ -55,24 +53,23 @@ IMAGE=glm53-dflash2:local ./start.sh
 | `DFLASH_TOKENS` | `5` | Best measured agent-workload compromise |
 | `DFLASH_KV_CACHE_DTYPE` | `bfloat16` | Quality-preserving cache for the small draft model |
 | `KV_CACHE_PROFILE` | `fp8` | Quality-leaning FP8 target MLA cache |
+| `ENABLE_EXPERT_PARALLEL` | `1` | Use the qualified TP2+EP2 B12x expert path |
 | `DECODE_CONTEXT_PARALLEL_SIZE` | `2` | Shard target long-context cache and attention work |
 | `MAX_MODEL_LEN` | `1048576` | GLM-5.3 Flash architecture limit; cold 1M qualified |
 | `MAX_NUM_SEQS` | `16` | Qualified C16 decode fan-out |
 | `MAX_NUM_BATCHED_TOKENS` | `2048` | Qualified prefill chunk size |
 | `LIMIT_MM_PER_PROMPT` | `{"image":16}` | Enable and enforce the 16-image contract |
 | `GPU_MEMORY_UTILIZATION` | `0.950` | Qualified ceiling; the launcher does not exceed it |
+| `GLM53_STARTUP_WARMUP` | `1` | Gate container health on the qualified first-use kernel warmup |
 | FlashInfer autotune | off | Avoid the unhelpful/unstable GLM SM12x tuning path |
 
-`MAX_NUM_SEQS=16` is scheduler capacity, not a claim that sixteen 1M prompts fit at once. The final DFlash2 profile reports two intentionally different capacity numbers:
+`MAX_NUM_SEQS=16` is scheduler capacity, not a claim that sixteen 1M prompts fit at once. vLLM reports **2,912,711 full-request-equivalent tokens**, or **2.78×** the configured maximum request. This is the conservative heterogeneous-pool result after target MLA, recurrent state, and per-request DFlash scratch are all accounted for; it is the capacity figure used by the scheduler.
 
-- **4,286,464 physical target-KV token slots** = 598 shared pool blocks × 3,584 target tokens per rank × DCP2. This is the number comparable to the previous roughly 4.55M FP8 reservoir.
-- **2,786,881 full-request-equivalent tokens** is vLLM's conservative scheduler metric after the same shared block-ID pool also pays for recurrent state and per-request DFlash scratch. At the 1,048,576-token limit, that is **2.66×** maximum-length request capacity.
-
-The local port gives the replicated DFlash attention group a 128-token allocation block instead of inheriting the target backend's generic 16-token page. That cuts its per-request block-ID tax from 257 to 33 while preserving the target's DCP2 cache geometry. It is why the final number is higher than the initial 1.16M estimate—but it cannot make DFlash scratch free.
+The local port gives the replicated DFlash attention group a 128-token allocation block instead of inheriting the target backend's generic 16-token page. That cuts its per-request block-ID tax from 257 to 33 while preserving the target's DCP2 cache geometry. EP2 and the updated runtime raise the scheduler result by 4.5% over v0.5 without changing FP8 precision.
 
 ## Profiles and controls
 
-K5 is the default because it held roughly 199 tok/s at C1 while retaining strong loaded throughput. K3 is useful when aggregate C16 throughput matters more than single-request latency; K7 over-drafted on this hardware.
+K5 remains the default because it reaches 222.6 tok/s at C1 while retaining 1,067.2 tok/s aggregate at C16 on the release workload. K3 remains an explicit throughput-oriented control from the previous tuning sweep; K7 over-drafted on this hardware.
 
 ```bash
 DFLASH_TOKENS=3 ./start.sh             # loaded-throughput profile
@@ -95,8 +92,10 @@ This is a pinned runtime composition, not a lucky pile of launcher flags:
 - GLM-5.3 EAGLE3/DFlash target taps after mHC, plus the GLM decoder-layer indirection needed by the drafter.
 - An independent DFlash KV group: the target remains DCP2 while the small dense draft attention/cache is correctly replicated at DCP1 on both ranks.
 - A 128-token replicated draft-cache allocation block and DFlash-aware target prefix hashes, avoiding waste and cross-group cache contamination.
-- EXL3 K3 mixed-checkpoint loading for GLM routed experts, plus B12x decode and bounded tiled-prefill trellis paths.
+- EXL3 K3 mixed-checkpoint loading for GLM routed experts, including global-to-local expert loading and B12x TP2+EP2 execution for GLM's 288-global/144-local-expert geometry.
+- Graph-stable MCG Trellis full-rotation scratch and route arenas, with numerical rank-partial parity and changed/empty-route CUDA graph replay gates.
 - B12x sparse MLA, paged K-pool score/top-k, DCP2 global owner exchange, graph-admitted PCIe DCP A2A, PCIe one-shot TP all-reduce, GLM H64 query projection, and batch-1 mHC fusion.
+- A release-ready entrypoint that prewarms GLM mHC, route, DFlash, sampler, long-prefill, and C16 specializations before exposing a healthy container.
 - Existing compact ReplaySSM and request-local adaptive MTP remain available as an alternate speculative method.
 - Correctness/performance admission gates keep eager or unprofitable shapes on vLLM/NCCL fallbacks.
 
@@ -104,6 +103,6 @@ The build probes the DFlash2 architecture and V2 speculator, GLM EAGLE3 support,
 
 ## Thank you
 
-Huge thanks to **Brandon** for the quant work this release builds on. Thanks to **Inco AI / Z-Lab** for DFlash2, **Z.ai** for GLM-5.3 Flash, **MiaAI-Lab** for the nearby dual-DGX-Spark SM121 references, **cstechdev** for the GLM day-zero image, the **vLLM** and **B12x/SparkInfer** contributors, and the ExLlamaV3 authors whose trellis work underpins EXL3. Special thanks as well to Jared and the other GLM upstream contributors credited by Z.ai's vLLM work.
+Huge thanks to **Brandon** for the quant work and the public EP2/runtime optimization lead behind this release's controlled comparison. No private route-128 implementation, binary, or behavior was copied. Thanks to **Inco AI / Z-Lab** for DFlash2, **Z.ai** for GLM-5.3 Flash, **MiaAI-Lab** for the nearby dual-DGX-Spark SM121 references, **cstechdev** for the GLM day-zero image, the **vLLM** and **B12x/SparkInfer** contributors, and the ExLlamaV3 authors whose trellis work underpins EXL3. Special thanks as well to Jared and the other GLM upstream contributors credited by Z.ai's vLLM work.
 
 Recipe code is Apache-2.0. Model licenses still apply. In particular, the DFlash2 checkpoint is published under **CC BY-NC-ND 4.0 for research and evaluation**; contact Inco AI for commercial licensing.

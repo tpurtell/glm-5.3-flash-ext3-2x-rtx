@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import gc
+import json
 import os
 import socket
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
@@ -139,6 +141,7 @@ def _worker(
     batches: tuple[int, ...],
     warmup: int,
     repeats: int,
+    output: str | None,
 ) -> None:
     torch.cuda.set_device(rank)
     device = torch.device("cuda", rank)
@@ -168,6 +171,7 @@ def _worker(
             flush=True,
         )
 
+    results = []
     for batch in batches:
         generator = torch.Generator(device=device).manual_seed(41000 + batch + rank)
         partial_output = torch.randn(
@@ -251,7 +255,38 @@ def _worker(
                     f"{nccl_graph_us / b12x_graph_us:.3f}",
                     flush=True,
                 )
+                results.append(
+                    {
+                        "batch": batch,
+                        "operation": name,
+                        "nccl_eager_us": nccl_eager,
+                        "b12x_eager_us": b12x_eager,
+                        "eager_speedup": nccl_eager / b12x_eager,
+                        "nccl_graph_us": nccl_graph_us,
+                        "b12x_graph_us": b12x_graph_us,
+                        "graph_speedup": nccl_graph_us / b12x_graph_us,
+                    }
+                )
         dist.barrier()
+
+    if rank == 0 and output is not None:
+        path = Path(output)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schema": "glm53-b12x-dcp-a2a.v1",
+                    "total_heads": TOTAL_HEADS,
+                    "query_head_dim": QUERY_HEAD_DIM,
+                    "output_head_dim": OUTPUT_HEAD_DIM,
+                    "warmup": warmup,
+                    "repeats": repeats,
+                    "results": results,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
 
     del nccl_graph, b12x_graph
     gc.collect()
@@ -266,6 +301,7 @@ def main() -> None:
     parser.add_argument("--batches", default="1,2,4,8,16,24,32")
     parser.add_argument("--warmup", type=int, default=20)
     parser.add_argument("--repeats", type=int, default=200)
+    parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     batches = tuple(int(value) for value in args.batches.split(","))
     if not batches or min(batches) <= 0:
@@ -273,7 +309,14 @@ def main() -> None:
     os.environ.setdefault("NCCL_DEBUG", "WARN")
     mp.spawn(
         _worker,
-        args=(2, _free_port(), batches, args.warmup, args.repeats),
+        args=(
+            2,
+            _free_port(),
+            batches,
+            args.warmup,
+            args.repeats,
+            str(args.output) if args.output is not None else None,
+        ),
         nprocs=2,
         join=True,
     )

@@ -1,0 +1,470 @@
+[
+    {
+        "Id": "ee8126812e7bfe9731b23ec8f575670a795314c633026ff19436e9df253568e5",
+        "Created": "2026-08-31T22:22:31.638872901Z",
+        "Path": "vllm",
+        "Args": [
+            "serve",
+            "/model-repo/snapshots/319d66a8b53092b491f698440ecea781e4ddd4e4",
+            "--served-model-name",
+            "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8001",
+            "--tensor-parallel-size",
+            "2",
+            "--decode-context-parallel-size",
+            "2",
+            "--dcp-comm-backend",
+            "ag_rs",
+            "--speculative-config",
+            "{\"method\":\"dflash\",\"model\":\"/draft-repo/snapshots/dc77ff1c99eeb2df044ee3d4f0094eb033fee410\",\"num_speculative_tokens\":5,\"kv_cache_dtype\":\"bfloat16\"}",
+            "--limit-mm-per-prompt",
+            "{\"image\":16}",
+            "--enable-prefix-caching",
+            "--mamba-cache-mode",
+            "align",
+            "--attention-backend",
+            "B12X_MLA_SPARSE",
+            "--max-model-len",
+            "1048576",
+            "--max-num-batched-tokens",
+            "2048",
+            "--max-num-seqs",
+            "16",
+            "--max-cudagraph-capture-size",
+            "96",
+            "--gpu-memory-utilization",
+            "0.950",
+            "--kv-cache-dtype",
+            "fp8_ds_mla",
+            "--no-enable-flashinfer-autotune",
+            "--enable-auto-tool-choice",
+            "--tool-call-parser",
+            "glm47",
+            "--reasoning-parser",
+            "glm45"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 3134551,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-08-31T22:22:31.705375885Z",
+            "FinishedAt": "0001-01-01T00:00:00Z",
+            "Health": {
+                "Status": "healthy",
+                "FailingStreak": 0,
+                "Log": [
+                    {
+                        "Start": "2026-09-01T06:36:22.230513334+08:00",
+                        "End": "2026-09-01T06:36:22.2949201+08:00",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2026-09-01T06:36:52.295895344+08:00",
+                        "End": "2026-09-01T06:36:52.359394728+08:00",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2026-09-01T06:37:22.361075496+08:00",
+                        "End": "2026-09-01T06:37:22.419673732+08:00",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2026-09-01T06:37:52.420888045+08:00",
+                        "End": "2026-09-01T06:37:52.486167251+08:00",
+                        "ExitCode": 0,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2026-09-01T06:38:22.487663563+08:00",
+                        "End": "2026-09-01T06:38:22.551805881+08:00",
+                        "ExitCode": 0,
+                        "Output": ""
+                    }
+                ]
+            }
+        },
+        "Image": "sha256:610050385608dd799288720b2eec97a53e0b8390edb49ed351d95f9bdf30ed41",
+        "ResolvConfPath": "/var/lib/docker/containers/ee8126812e7bfe9731b23ec8f575670a795314c633026ff19436e9df253568e5/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/ee8126812e7bfe9731b23ec8f575670a795314c633026ff19436e9df253568e5/hostname",
+        "HostsPath": "/var/lib/docker/containers/ee8126812e7bfe9731b23ec8f575670a795314c633026ff19436e9df253568e5/hosts",
+        "LogPath": "/var/lib/docker/containers/ee8126812e7bfe9731b23ec8f575670a795314c633026ff19436e9df253568e5/ee8126812e7bfe9731b23ec8f575670a795314c633026ff19436e9df253568e5-json.log",
+        "Name": "/glm53-v06-b",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": [
+                "/home/tj/.cache/huggingface/hub/models--wrldsuksgo2mars--GLM-5.3-Flash-EXL3-K3-v1:/model-repo:ro",
+                "/home/tj/.cache/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2:/draft-repo:ro",
+                "/home/tj/Developer/brandon-glm-5.3-flash/recipe/.cache/vllm:/root/.cache"
+            ],
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "bridge",
+            "PortBindings": {
+                "8001/tcp": [
+                    {
+                        "HostIp": "",
+                        "HostPort": "8001"
+                    }
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "host",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": [
+                "label=disable"
+            ],
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 34359738368,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": [],
+            "BlkioDeviceReadBps": [],
+            "BlkioDeviceWriteBps": [],
+            "BlkioDeviceReadIOps": [],
+            "BlkioDeviceWriteIOps": [],
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": [],
+            "DeviceCgroupRules": null,
+            "DeviceRequests": [
+                {
+                    "Driver": "",
+                    "Count": -1,
+                    "DeviceIDs": null,
+                    "Capabilities": [
+                        [
+                            "gpu"
+                        ]
+                    ],
+                    "Options": {}
+                }
+            ],
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": [],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ],
+            "Init": true
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/home/tj/.cache/huggingface/hub/models--wrldsuksgo2mars--GLM-5.3-Flash-EXL3-K3-v1",
+                "Destination": "/model-repo",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/tj/.cache/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2",
+                "Destination": "/draft-repo",
+                "Mode": "ro",
+                "RW": false,
+                "Propagation": "rprivate"
+            },
+            {
+                "Type": "bind",
+                "Source": "/home/tj/Developer/brandon-glm-5.3-flash/recipe/.cache/vllm",
+                "Destination": "/root/.cache",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+            "Hostname": "ee8126812e7b",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "8001/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "VLLM_ADAPTIVE_MTP_HISTORY=16",
+                "VLLM_DCP_QUERY_SPLIT=0",
+                "KV_FP8_ROPE=0",
+                "VLLM_EXL3_PREFILL_CAPACITY=1024",
+                "VLLM_B12X_GLM_H64_QUERY_PROJ=auto",
+                "TORCH_SHOW_CPP_STACKTRACES=0",
+                "VLLM_ADAPTIVE_MTP_DECISION_WINDOW=8",
+                "VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE=384KB",
+                "VLLM_B12X_PCIE_EAGER=0",
+                "VLLM_B12X_DCP_TOPK_OWNER_EXCHANGE=1",
+                "VLLM_B12X_DCP_TOPK_MAX_ROWS=2048",
+                "VLLM_ADAPTIVE_MTP_PROBE_INTERVAL=32",
+                "VLLM_EXL3_TRELLIS_MAX_M=32",
+                "VLLM_EXL3_PREFILL_TRELLIS=1",
+                "VLLM_USE_B12X_MHC=auto",
+                "VLLM_ADAPTIVE_MTP_PROBE_INTERVAL_MAX=256",
+                "VLLM_B12X_DCP_A2A=1",
+                "CUDA_LAUNCH_BLOCKING=0",
+                "VLLM_ENABLE_PCIE_ALLREDUCE=1",
+                "VLLM_B12X_DCP_TOPK_MIN_ROWS=128",
+                "VLLM_NVFP4_MLA_DYNAMIC_SCALE=0",
+                "B12X_EXL3_BF16_GEMV=1",
+                "VLLM_ENGINE_READY_TIMEOUT_S=3600",
+                "VLLM_USE_B12X_KPOOL_INDEXER=1",
+                "VLLM_NVFP4_MLA_SCALES_FILE=",
+                "VLLM_EXL3_PREFILL_BLOCK_M=64",
+                "HF_HUB_OFFLINE=1",
+                "VLLM_ADAPTIVE_MTP_MIN_DEPTH=1",
+                "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
+                "VLLM_PCIE_ALLREDUCE_BACKEND=b12x",
+                "VLLM_USE_B12X_SPARSE_INDEXER=1",
+                "VLLM_DCP_TOPK_OWNER_MERGE=1",
+                "VLLM_EXL3_TRELLIS_MIN_M=1",
+                "B12X_EXL3_BF16_EPILOGUE=1",
+                "VLLM_ADAPTIVE_MTP=0",
+                "VLLM_ADAPTIVE_MTP_LOAD_THRESHOLDS=0.28,0.45,0.55,0.75,0.90",
+                "NCCL_DEBUG=WARN",
+                "VLLM_DCP_GLOBAL_TOPK=1",
+                "VLLM_EXL3_TRELLIS_BLOCK_M=8",
+                "PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NVARCH=x86_64",
+                "NVIDIA_REQUIRE_CUDA=cuda>=13.0 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566 brand=unknown,driver>=570,driver<571 brand=grid,driver>=570,driver<571 brand=tesla,driver>=570,driver<571 brand=nvidia,driver>=570,driver<571 brand=quadro,driver>=570,driver<571 brand=quadrortx,driver>=570,driver<571 brand=nvidiartx,driver>=570,driver<571 brand=vapps,driver>=570,driver<571 brand=vpc,driver>=570,driver<571 brand=vcs,driver>=570,driver<571 brand=vws,driver>=570,driver<571 brand=cloudgaming,driver>=570,driver<571 brand=unknown,driver>=575,driver<576 brand=grid,driver>=575,driver<576 brand=tesla,driver>=575,driver<576 brand=nvidia,driver>=575,driver<576 brand=quadro,driver>=575,driver<576 brand=quadrortx,driver>=575,driver<576 brand=nvidiartx,driver>=575,driver<576 brand=vapps,driver>=575,driver<576 brand=vpc,driver>=575,driver<576 brand=vcs,driver>=575,driver<576 brand=vws,driver>=575,driver<576 brand=cloudgaming,driver>=575,driver<576",
+                "NV_CUDA_CUDART_VERSION=13.0.88-1",
+                "CUDA_VERSION=13.0.1",
+                "LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64",
+                "NVIDIA_VISIBLE_DEVICES=all",
+                "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+                "DEBIAN_FRONTEND=noninteractive",
+                "UV_HTTP_TIMEOUT=500",
+                "UV_INDEX_STRATEGY=unsafe-best-match",
+                "UV_LINK_MODE=copy",
+                "UV_PYTHON_INSTALL_DIR=/opt/uv/python",
+                "UV_CACHE_DIR=/opt/uv/cache",
+                "UV_OVERRIDE=/etc/uv-overrides.txt",
+                "VLLM_ENABLE_CUDA_COMPATIBILITY=0",
+                "TORCH_CUDA_ARCH_LIST=7.5 8.0 8.6 8.9 9.0 10.0 12.0",
+                "VLLM_USAGE_SOURCE=production-docker-image",
+                "VLLM_BUILD_COMMIT=unknown",
+                "VLLM_BUILD_PIPELINE=local",
+                "VLLM_BUILD_URL=",
+                "VLLM_IMAGE_TAG=local/vllm-openai:dev",
+                "PYTHONPATH=/opt/b12x:/usr/local/lib/python3.12/dist-packages",
+                "PYTHONUNBUFFERED=1",
+                "PYTHONDONTWRITEBYTECODE=1",
+                "CUDA_MODULE_LOADING=LAZY"
+            ],
+            "Cmd": [
+                "/model-repo/snapshots/319d66a8b53092b491f698440ecea781e4ddd4e4",
+                "--served-model-name",
+                "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8001",
+                "--tensor-parallel-size",
+                "2",
+                "--decode-context-parallel-size",
+                "2",
+                "--dcp-comm-backend",
+                "ag_rs",
+                "--speculative-config",
+                "{\"method\":\"dflash\",\"model\":\"/draft-repo/snapshots/dc77ff1c99eeb2df044ee3d4f0094eb033fee410\",\"num_speculative_tokens\":5,\"kv_cache_dtype\":\"bfloat16\"}",
+                "--limit-mm-per-prompt",
+                "{\"image\":16}",
+                "--enable-prefix-caching",
+                "--mamba-cache-mode",
+                "align",
+                "--attention-backend",
+                "B12X_MLA_SPARSE",
+                "--max-model-len",
+                "1048576",
+                "--max-num-batched-tokens",
+                "2048",
+                "--max-num-seqs",
+                "16",
+                "--max-cudagraph-capture-size",
+                "96",
+                "--gpu-memory-utilization",
+                "0.950",
+                "--kv-cache-dtype",
+                "fp8_ds_mla",
+                "--no-enable-flashinfer-autotune",
+                "--enable-auto-tool-choice",
+                "--tool-call-parser",
+                "glm47",
+                "--reasoning-parser",
+                "glm45"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD",
+                    "python3",
+                    "-c",
+                    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"
+                ],
+                "Interval": 30000000000,
+                "Timeout": 5000000000,
+                "StartPeriod": 1800000000000,
+                "Retries": 5
+            },
+            "Image": "glm53-flash-exl3-b12x-vllm:v0.6-ep2-dev5",
+            "Volumes": null,
+            "WorkingDir": "/vllm-workspace",
+            "Entrypoint": [
+                "vllm",
+                "serve"
+            ],
+            "Labels": {
+                "ai.vllm.build.commit": "unknown",
+                "ai.vllm.build.pipeline": "local",
+                "ai.vllm.build.url": "",
+                "ai.vllm.image.tag": "local/vllm-openai:dev",
+                "io.tpurtell.b12x.commit": "6a9778853606dc02c829972262f81e1fabc0e092",
+                "io.tpurtell.b12x.source": "https://github.com/tpurtell/sparkinfer-glmrt",
+                "io.tpurtell.dflash2-vllm.commit": "b389ac29465b33f9e9c534df221ea3c129e9793f",
+                "io.tpurtell.exl3-source.digest": "sha256:86c8c1054f9c24454949e37031ce6165c007963aa0c0ef30fa884f6d4170af32",
+                "io.tpurtell.exl3-vllm.commit": "30038602b71395f481ef4a6edfe4fcf8551d9c15",
+                "io.tpurtell.glm-base.digest": "sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5",
+                "maintainer": "NVIDIA CORPORATION <cudatools@nvidia.com>",
+                "org.opencontainers.image.description": "GLM-5.3 Flash EXL3 K3 on 2x SM120: DFlash2, multimodal GLM, FP8 MLA, DCP2, and B12x PCIe kernels",
+                "org.opencontainers.image.licenses": "Apache-2.0",
+                "org.opencontainers.image.ref.name": "ubuntu",
+                "org.opencontainers.image.revision": "unknown",
+                "org.opencontainers.image.source": "https://github.com/tpurtell/glm-5.3-flash-ext3-4-bit-2x-rtx",
+                "org.opencontainers.image.url": "",
+                "org.opencontainers.image.version": "local/vllm-openai:dev"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "5caa34a9fac4d1b607f1b91f4cb1889f5804b85245190363ee7db0bcc0cd5d2b",
+            "SandboxKey": "/var/run/docker/netns/5caa34a9fac4",
+            "Ports": {
+                "8001/tcp": [
+                    {
+                        "HostIp": "0.0.0.0",
+                        "HostPort": "8001"
+                    },
+                    {
+                        "HostIp": "::",
+                        "HostPort": "8001"
+                    }
+                ]
+            },
+            "Networks": {
+                "bridge": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "e5eab3a74ddcee7972e481540e06b6a4bd7e4507cddef5fc8cc96c7837725db6",
+                    "EndpointID": "56312a605cfbefe98959a440e8c832bfb6e312542ef91ecab5b6629509c4837b",
+                    "Gateway": "172.17.0.1",
+                    "IPAddress": "172.17.0.2",
+                    "MacAddress": "1e:41:1e:94:7a:8e",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": null
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:1a5751d72a7aa9cffbe1cc8a2dc8ced2ed4350ebb79345cc860b34eb6c4b50e0",
+            "size": 13781,
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]

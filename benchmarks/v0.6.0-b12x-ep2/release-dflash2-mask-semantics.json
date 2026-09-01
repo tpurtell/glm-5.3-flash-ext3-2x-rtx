@@ -1,0 +1,73 @@
+{
+  "schema": "glm53-dflash2-mask-semantics.v1",
+  "draft_model": "/draft-repo/snapshots/dc77ff1c99eeb2df044ee3d4f0094eb033fee410",
+  "mask_token_id": 154856,
+  "num_speculative_tokens": 5,
+  "sample_from_anchor": false,
+  "query_ids": [
+    111,
+    154856,
+    154856,
+    154856,
+    154856,
+    154856,
+    222,
+    154856,
+    154856,
+    154856,
+    154856,
+    154856
+  ],
+  "query_positions": [
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59
+  ],
+  "sample_indices": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "sample_positions": [
+    13,
+    14,
+    15,
+    16,
+    17,
+    55,
+    56,
+    57,
+    58,
+    59
+  ],
+  "checks": {
+    "config_resolves_mask_token": true,
+    "decode_anchor_uses_last_sampled": true,
+    "prefill_anchor_uses_next_token": true,
+    "five_masks_follow_each_anchor": true,
+    "rejection_rolls_back_anchor_position": true,
+    "prefill_positions_follow_context": true,
+    "only_masks_are_sampled": true,
+    "mask_samples_use_own_positions": true,
+    "request_state_mapping_is_preserved": true,
+    "padded_samples_are_inert": true,
+    "padded_query_slots_are_inert": true
+  },
+  "passed": true
+}

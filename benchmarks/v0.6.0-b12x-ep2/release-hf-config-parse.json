@@ -1,0 +1,23 @@
+{
+  "schema": "glm53-hf-config-parse.v1",
+  "verified_at": "2026-09-01T02:10:03Z",
+  "repository": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "pinned_revision": "319d66a8b53092b491f698440ecea781e4ddd4e4",
+  "public_head_at_verification": "180a1f118595725491b29e6e1a24785622371a64",
+  "config_bytes": 10951,
+  "json_parse": true,
+  "pretrained_config_dictionary_parse": true,
+  "model_type": "glm5_next",
+  "architectures": [
+    "Glm5NextForConditionalGeneration"
+  ],
+  "vllm_config_class": "Glm5NextConfig",
+  "vllm_config_parse": true,
+  "tensor_storage_embedded_in_config": false,
+  "external_quantization_manifest": true,
+  "huggingface_api_pipeline_tag": "image-text-to-text",
+  "huggingface_api_card_error": null,
+  "bundled_transformers_auto_config_registered": false,
+  "bundled_transformers_note": "The pinned day-zero image's stock Transformers registry predates glm5_next; the release vLLM registry resolves Glm5NextConfig, and Hugging Face's current parser renders the model normally.",
+  "passed": true
+}

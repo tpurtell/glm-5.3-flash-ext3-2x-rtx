@@ -1,0 +1,123 @@
+{
+  "schema": "glm53-decode-concurrency.v2",
+  "method": "one depth-0 prompt with n parallel continuations; aggregate decode timing spans first to last streamed token and excludes TTFT; the same sampling seed is repeated so MTP acceptance is comparable",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "kv_cache_profile": "fp8",
+  "mtp_tokens": 5,
+  "mtp_policy": "off",
+  "output_tokens_per_sequence": 256,
+  "warmup_runs_per_point": 2,
+  "runs_per_point": 5,
+  "points": [
+    {
+      "concurrency": 16,
+      "aggregate_decode_tokens_per_second": {
+        "median": 643.4968857374035,
+        "min": 362.0979625229023,
+        "max": 656.0608441992157
+      },
+      "runs": [
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.363241309998557,
+          "decode_tokens_per_second": 641.1826616710415,
+          "ttft_ms": 118.54194197803736
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.234599997056648,
+          "decode_tokens_per_second": 654.4124726407734,
+          "ttft_ms": 42.85994404926896
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.218935386976227,
+          "decode_tokens_per_second": 656.0608441992157,
+          "ttft_ms": 122.54688795655966
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.340357024921104,
+          "decode_tokens_per_second": 643.4968857374035,
+          "ttft_ms": 123.22195200249553
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 11.267669035121799,
+          "decode_tokens_per_second": 362.0979625229023,
+          "ttft_ms": 43.989118887111545
+        }
+      ]
+    },
+    {
+      "concurrency": 1,
+      "aggregate_decode_tokens_per_second": {
+        "median": 129.50710979167096,
+        "min": 113.77419027071336,
+        "max": 140.08223504578862
+      },
+      "runs": [
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.963601521216333,
+          "decode_tokens_per_second": 129.86341538482964,
+          "ttft_ms": 39.44445285014808
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 2.2412816069554538,
+          "decode_tokens_per_second": 113.77419027071336,
+          "ttft_ms": 57.29576898738742
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.9690038671251386,
+          "decode_tokens_per_second": 129.50710979167096,
+          "ttft_ms": 39.89086300134659
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.9984668849501759,
+          "decode_tokens_per_second": 127.59781106223205,
+          "ttft_ms": 57.47890402562916
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.8203593047801405,
+          "decode_tokens_per_second": 140.08223504578862,
+          "ttft_ms": 57.12017510086298
+        }
+      ]
+    }
+  ]
+}

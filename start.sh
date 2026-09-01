@@ -29,6 +29,7 @@ CONTAINER_NAME="${CONTAINER_NAME:-glm53-flash-exl3-b12x-vllm}"
 SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-${MODEL_ID}}"
 PORT="${PORT:-8001}"
 TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-2}"
+ENABLE_EXPERT_PARALLEL="${ENABLE_EXPERT_PARALLEL:-1}"
 DECODE_CONTEXT_PARALLEL_SIZE="${DECODE_CONTEXT_PARALLEL_SIZE:-2}"
 DCP_COMM_BACKEND="${DCP_COMM_BACKEND:-ag_rs}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-}"
@@ -92,6 +93,10 @@ PCIE_ONESHOT_MAX_SIZE="${PCIE_ONESHOT_MAX_SIZE:-384KB}"
 CACHE_DIR="${CACHE_DIR:-${SCRIPT_DIR}/.cache/vllm}"
 GPU_REQUEST="${GPU_REQUEST:-all}"
 VLLM_NVFP4_MLA_SCALES_FILE="${VLLM_NVFP4_MLA_SCALES_FILE:-}"
+# Local diagnostics only. When set, expose vLLM's on-demand torch-profiler
+# endpoints and retain rank-qualified traces under this host directory.
+TORCH_PROFILER_DIR="${TORCH_PROFILER_DIR:-}"
+GLM53_STARTUP_WARMUP="${GLM53_STARTUP_WARMUP:-1}"
 
 if [[ "${KV_CACHE_DTYPE}" == nvfp4_ds_mla ]]; then
   KV_FP8_ROPE="${KV_FP8_ROPE:-1}"
@@ -160,6 +165,18 @@ fi
 if [[ ! "${MAX_NUM_SEQS}" =~ ^[1-9][0-9]*$ ]]; then
   echo "MAX_NUM_SEQS must be a positive integer; got: ${MAX_NUM_SEQS}" >&2
   exit 2
+fi
+if [[ "${ENABLE_EXPERT_PARALLEL}" != 0 && "${ENABLE_EXPERT_PARALLEL}" != 1 ]]; then
+  echo "ENABLE_EXPERT_PARALLEL must be 0 or 1; got: ${ENABLE_EXPERT_PARALLEL}" >&2
+  exit 2
+fi
+if [[ "${GLM53_STARTUP_WARMUP}" != 0 && "${GLM53_STARTUP_WARMUP}" != 1 ]]; then
+  echo "GLM53_STARTUP_WARMUP must be 0 or 1; got: ${GLM53_STARTUP_WARMUP}" >&2
+  exit 2
+fi
+EP_SIZE=1
+if [[ "${ENABLE_EXPERT_PARALLEL}" == 1 ]]; then
+  EP_SIZE="${TENSOR_PARALLEL_SIZE}"
 fi
 if [[ -z "${MAX_CUDAGRAPH_CAPTURE_SIZE}" ]]; then
   if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
@@ -282,6 +299,11 @@ if [[ "${ENABLE_PCIE_ALLREDUCE}" == 0 ]]; then
   CUSTOM_ALL_REDUCE_ARGS+=(--disable-custom-all-reduce)
 fi
 
+EXPERT_PARALLEL_ARGS=()
+if [[ "${ENABLE_EXPERT_PARALLEL}" == 1 ]]; then
+  EXPERT_PARALLEL_ARGS+=(--enable-expert-parallel)
+fi
+
 SPECULATIVE_ARGS=()
 case "${SPECULATIVE_METHOD}" in
 dflash2)
@@ -334,6 +356,18 @@ if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
   DRAFT_MOUNT_ARGS+=(--volume "${DFLASH_REPO_DIR}:/draft-repo:ro")
 fi
 
+PROFILER_MOUNT_ARGS=()
+PROFILER_SERVE_ARGS=()
+if [[ -n "${TORCH_PROFILER_DIR}" ]]; then
+  mkdir -p "${TORCH_PROFILER_DIR}"
+  TORCH_PROFILER_DIR="$(realpath -e -- "${TORCH_PROFILER_DIR}")"
+  PROFILER_MOUNT_ARGS+=(--volume "${TORCH_PROFILER_DIR}:/profile")
+  PROFILER_SERVE_ARGS+=(
+    --profiler-config
+    '{"profiler":"torch","torch_profiler_dir":"/profile","torch_profiler_with_stack":false,"torch_profiler_record_shapes":true,"ignore_frontend":true}'
+  )
+fi
+
 MODEL_MODE_ARGS=()
 if [[ "${LANGUAGE_MODEL_ONLY}" == 1 ]]; then
   MODEL_MODE_ARGS+=(--language-model-only)
@@ -368,6 +402,8 @@ docker run --detach \
   --env CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}" \
   --env TORCH_SHOW_CPP_STACKTRACES="${TORCH_SHOW_CPP_STACKTRACES:-0}" \
   --env VLLM_ENGINE_READY_TIMEOUT_S="${VLLM_ENGINE_READY_TIMEOUT_S:-3600}" \
+  --env GLM53_STARTUP_WARMUP="${GLM53_STARTUP_WARMUP}" \
+  --env GLM53_STARTUP_WARMUP_TIMEOUT_S="${GLM53_STARTUP_WARMUP_TIMEOUT_S:-1800}" \
   --env VLLM_ADAPTIVE_MTP="${RUNTIME_ADAPTIVE_MTP}" \
   --env VLLM_ADAPTIVE_MTP_HISTORY="${VLLM_ADAPTIVE_MTP_HISTORY:-16}" \
   --env VLLM_ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH}" \
@@ -405,6 +441,7 @@ docker run --detach \
   --env VLLM_USE_B12X_MHC="${VLLM_USE_B12X_MHC:-auto}" \
   --volume "${MODEL_MOUNT_SOURCE}:${MODEL_MOUNT_TARGET}:ro" \
   "${DRAFT_MOUNT_ARGS[@]}" \
+  "${PROFILER_MOUNT_ARGS[@]}" \
   --volume "${CACHE_DIR}:/root/.cache" \
   "${IMAGE}" \
   "${MODEL_CONTAINER_DIR}" \
@@ -412,6 +449,7 @@ docker run --detach \
   --host 0.0.0.0 \
   --port 8001 \
   --tensor-parallel-size "${TENSOR_PARALLEL_SIZE}" \
+  "${EXPERT_PARALLEL_ARGS[@]}" \
   --decode-context-parallel-size "${DECODE_CONTEXT_PARALLEL_SIZE}" \
   --dcp-comm-backend "${DCP_COMM_BACKEND}" \
   "${CUSTOM_ALL_REDUCE_ARGS[@]}" \
@@ -428,13 +466,16 @@ docker run --detach \
   --no-enable-flashinfer-autotune \
   --enable-auto-tool-choice \
   --tool-call-parser glm47 \
-  --reasoning-parser glm45
+  --reasoning-parser glm45 \
+  "${PROFILER_SERVE_ARGS[@]}"
 
 printf 'Started %s on http://127.0.0.1:%s/v1. Initial B12x/CuTe compilation can take several minutes.\n' \
   "${CONTAINER_NAME}" "${PORT}"
 printf 'Profile: %s, KV cache: %s, max length: %s, max sequences: %s, GPU memory utilization: %s\n' \
   "${KV_CACHE_PROFILE}" "${KV_CACHE_DTYPE}" "${MAX_MODEL_LEN}" "${MAX_NUM_SEQS}" \
   "${GPU_MEMORY_UTILIZATION}"
+printf 'MoE topology: TP%s, EP%s\n' \
+  "${TENSOR_PARALLEL_SIZE}" "${EP_SIZE}"
 if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
   printf 'Speculation: DFlash2 K%s, %s draft KV, from %s@%s\n' \
     "${DFLASH_TOKENS}" "${DFLASH_KV_CACHE_DTYPE}" \

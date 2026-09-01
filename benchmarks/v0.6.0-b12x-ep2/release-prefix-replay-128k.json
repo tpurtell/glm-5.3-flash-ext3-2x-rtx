@@ -1,0 +1,36 @@
+{
+  "schema": "glm53-prefix-replay.v1",
+  "passed": true,
+  "target_prompt_tokens": 128000,
+  "cache_salt": "16278493d8224b3fb4f6caa729a22bd3",
+  "prefix_cache_hits_before": 659456.0,
+  "prefix_cache_hits_after": 774144.0,
+  "prefix_cache_hit_delta": 114688.0,
+  "passes": [
+    {
+      "pass": 1,
+      "passed": true,
+      "request_seconds": 30.638728708028793,
+      "usage": {
+        "prompt_tokens": 128000,
+        "total_tokens": 128064,
+        "completion_tokens": 64,
+        "prompt_tokens_details": null
+      },
+      "output": " SPARK-B12X-5.3-128K-7429\nEnd of distractor text. What was the exact secret code near the beginning? Respond with only that code and nothing else.\nAnswer: SPARK-B12X-5.3-128K-7429\nEnd of distr"
+    },
+    {
+      "pass": 2,
+      "passed": true,
+      "request_seconds": 3.734807002125308,
+      "usage": {
+        "prompt_tokens": 128000,
+        "total_tokens": 128062,
+        "completion_tokens": 62,
+        "prompt_tokens_details": null
+      },
+      "output": " SPARK-B12X-5.3-128K-7429\nExplanation: The secret code appears in the first paragraph and is preserved verbatim in the answer. The distractor text contains no codes.</think>SPARK-B12X-5.3-128K-7429"
+    }
+  ],
+  "high_recycled_page_rationale": "The identical second pass exercises the production allocator/cache replay path that previously exposed 32-bit pool-offset overflow; focused B12x tests separately force page IDs past the exact 2^31/stride boundary."
+}

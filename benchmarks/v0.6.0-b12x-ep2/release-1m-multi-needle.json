@@ -1,0 +1,89 @@
+{
+  "schema": "glm53-cold-multi-needle.v1",
+  "passed": true,
+  "target_prompt_tokens": 1000000,
+  "nonce": "dflash2-fp8-ep2-release-v06",
+  "cache_salt": "7482e30692c3464081e7f7f81e6d2442",
+  "prompt_sha256": "c09c0a801bae8332a2adf444ba6fd77eb72d4553bcce9a99d8464b0aebadc66d",
+  "placements": [
+    {
+      "fraction": 0.05,
+      "key": "CINDER-05",
+      "value": "azurite-4831",
+      "token_offset_before_record": 50000
+    },
+    {
+      "fraction": 0.25,
+      "key": "JUNIPER-25",
+      "value": "topaz-7614",
+      "token_offset_before_record": 250000
+    },
+    {
+      "fraction": 0.5,
+      "key": "LANTERN-50",
+      "value": "cobalt-2097",
+      "token_offset_before_record": 500000
+    },
+    {
+      "fraction": 0.75,
+      "key": "MARBLE-75",
+      "value": "saffron-6382",
+      "token_offset_before_record": 750000
+    },
+    {
+      "fraction": 0.95,
+      "key": "ORBIT-95",
+      "value": "willow-1459",
+      "token_offset_before_record": 950000
+    },
+    {
+      "fraction": 0.99,
+      "key": "QUARTZ-99",
+      "value": "indigo-8726",
+      "token_offset_before_record": 990000
+    }
+  ],
+  "checks": [
+    {
+      "key": "CINDER-05",
+      "expected": "azurite-4831",
+      "passed": true
+    },
+    {
+      "key": "JUNIPER-25",
+      "expected": "topaz-7614",
+      "passed": true
+    },
+    {
+      "key": "LANTERN-50",
+      "expected": "cobalt-2097",
+      "passed": true
+    },
+    {
+      "key": "MARBLE-75",
+      "expected": "saffron-6382",
+      "passed": true
+    },
+    {
+      "key": "ORBIT-95",
+      "expected": "willow-1459",
+      "passed": true
+    },
+    {
+      "key": "QUARTZ-99",
+      "expected": "indigo-8726",
+      "passed": true
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 1000000,
+    "total_tokens": 1000128,
+    "completion_tokens": 128
+  },
+  "build_seconds": 3.891,
+  "ttft_seconds": 258.203,
+  "stream_after_first_token_seconds": 2.628,
+  "request_seconds": 260.831,
+  "wall_seconds_after_build": 260.838,
+  "output": "CINDER-05=azurite-4831\nJUNIPER-25=topaz-7614\nLANTERN-50=cobalt-2097\nMARBLE-75=saffron-6382\nORBIT-95=willow-1459\nQUARTZ-99=indigo-8726\nEND OF ANSWER.</think>CINDER-05=azurite-4831\nJUNIPER-25=topaz-7614\nLANTERN-50=cobalt-2097\nMARBLE-75=saffron-638"
+}

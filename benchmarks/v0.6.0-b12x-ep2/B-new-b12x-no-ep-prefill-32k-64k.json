@@ -1,0 +1,69 @@
+{
+  "schema": "glm53-prefill-depth.v1",
+  "method": "C1 exact-length unique prompts; client request to first streamed token; server tokenization and one-token handoff included; no prefix reuse",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "kv_cache_profile": "fp8",
+  "runs_per_point": 3,
+  "points": [
+    {
+      "prompt_tokens": 32768,
+      "effective_prompt_tokens_per_second": {
+        "median": 4723.683491667631,
+        "min": 4684.196473409423,
+        "max": 4755.902375858064
+      },
+      "ttft_seconds": {
+        "median": 6.936959272949025,
+        "min": 6.8899648080114275,
+        "max": 6.995436717057601
+      },
+      "runs": [
+        {
+          "prompt_tokens": 32768,
+          "ttft_seconds": 6.8899648080114275,
+          "effective_prompt_tokens_per_second": 4755.902375858064
+        },
+        {
+          "prompt_tokens": 32768,
+          "ttft_seconds": 6.936959272949025,
+          "effective_prompt_tokens_per_second": 4723.683491667631
+        },
+        {
+          "prompt_tokens": 32768,
+          "ttft_seconds": 6.995436717057601,
+          "effective_prompt_tokens_per_second": 4684.196473409423
+        }
+      ]
+    },
+    {
+      "prompt_tokens": 65536,
+      "effective_prompt_tokens_per_second": {
+        "median": 4573.042997210936,
+        "min": 4535.532542345203,
+        "max": 4623.325341032672
+      },
+      "ttft_seconds": {
+        "median": 14.330938948085532,
+        "min": 14.175078577827662,
+        "max": 14.449460871051997
+      },
+      "runs": [
+        {
+          "prompt_tokens": 65536,
+          "ttft_seconds": 14.175078577827662,
+          "effective_prompt_tokens_per_second": 4623.325341032672
+        },
+        {
+          "prompt_tokens": 65536,
+          "ttft_seconds": 14.330938948085532,
+          "effective_prompt_tokens_per_second": 4573.042997210936
+        },
+        {
+          "prompt_tokens": 65536,
+          "ttft_seconds": 14.449460871051997,
+          "effective_prompt_tokens_per_second": 4535.532542345203
+        }
+      ]
+    }
+  ]
+}

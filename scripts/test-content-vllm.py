@@ -190,6 +190,7 @@ def main() -> None:
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=900)
+    parser.add_argument("--seed", type=int, default=20260901)
     parser.add_argument(
         "--max-tokens",
         type=int,
@@ -230,6 +231,7 @@ def main() -> None:
             # token budget test.
             "prompt": render["token_ids"] + close_think,
             "temperature": 0,
+            "seed": args.seed,
             "max_tokens": args.max_tokens or case.max_tokens,
             "add_special_tokens": False,
         }

@@ -1,0 +1,32 @@
+{
+  "schema": "glm53-decode-concurrency.v2",
+  "method": "one depth-0 prompt with n parallel continuations; aggregate decode timing spans first to last streamed token and excludes TTFT; the same sampling seed is repeated so MTP acceptance is comparable",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "kv_cache_profile": "fp8",
+  "mtp_tokens": 5,
+  "mtp_policy": "off",
+  "output_tokens_per_sequence": 32,
+  "warmup_runs_per_point": 0,
+  "runs_per_point": 1,
+  "points": [
+    {
+      "concurrency": 16,
+      "aggregate_decode_tokens_per_second": {
+        "median": 72.22558050268896,
+        "min": 72.22558050268896,
+        "max": 72.22558050268896
+      },
+      "runs": [
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 32,
+          "completion_tokens": 512,
+          "decode_tokens": 496,
+          "decode_seconds": 6.867372979875654,
+          "decode_tokens_per_second": 72.22558050268896,
+          "ttft_ms": 1054.6214662026614
+        }
+      ]
+    }
+  ]
+}

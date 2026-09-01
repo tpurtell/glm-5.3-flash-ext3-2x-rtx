@@ -328,6 +328,44 @@ def main(root: Path) -> None:
     )
     replace_once(
         exl3,
+        '            "Rank-sliced EXL3 requires the exl3_trellis_mcg source in "\n'
+        '            "b12x.moe.fused_moe. Install a matching Sparkinfer build."\n',
+        '            "Rank-sliced EXL3 requires the b12x_trellis MCG source in "\n'
+        '            "b12x.moe.fused_moe. Install the recipe-pinned B12x build."\n',
+        "name the canonical B12x Trellis source in diagnostics",
+    )
+    replace_once(
+        exl3,
+        '            source_format="exl3_trellis_mcg",\n',
+        '            source_format="b12x_trellis",\n',
+        "use the canonical B12x Trellis source format",
+    )
+    replace_once(
+        exl3,
+        "            trellis_bits=bits,\n"
+        "            trellis_tile_config=tile_config,\n",
+        "            trellis_bits=bits,\n"
+        '            trellis_codebook="mcg",\n'
+        "            trellis_tile_config=tile_config,\n",
+        "declare the MCG codebook to the typed B12x planner",
+    )
+    replace_once(
+        exl3,
+        '        marker = layer.w13_mcg.exl3_tensors[(0, "w1")]\n'
+        "        weight_plan = api.plan_weights(\n",
+        '        marker = layer.w13_mcg.exl3_tensors[(0, "w1")]\n'
+        "        marker_value = int(marker.item()) & 0xFFFFFFFF\n"
+        "        weight_plan = api.plan_weights(\n",
+        "normalize the signed checkpoint MCG marker",
+    )
+    replace_once(
+        exl3,
+        "            trellis_mcg=marker,\n",
+        "            trellis_mcg=marker_value,\n",
+        "pass the normalized MCG marker to B12x preparation",
+    )
+    replace_once(
+        exl3,
         "        topk = int(topk_ids.shape[1])\n"
         "        device_index = x.device.index\n"
         "        key = (\n",

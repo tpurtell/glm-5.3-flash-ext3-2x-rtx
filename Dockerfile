@@ -9,7 +9,7 @@ FROM ${EXL3_SOURCE_IMAGE} AS exl3_source
 FROM ${GLM_BASE_IMAGE}
 
 ARG B12X_REPOSITORY=https://github.com/tpurtell/sparkinfer-glmrt
-ARG B12X_COMMIT=988246c8b007c9c1c2006eb677f6fa4b26aeb561
+ARG B12X_COMMIT=611ffe8712e40e9ed0110e3cfb1d0b7f4580e631
 ARG DFLASH2_VLLM_COMMIT=b389ac29465b33f9e9c534df221ea3c129e9793f
 
 SHELL ["/bin/bash", "-c"]
@@ -58,6 +58,7 @@ COPY --from=exl3_source \
     /opt/vllm/vllm/model_executor/layers/mla_cache_format.py \
     /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/mla_cache_format.py
 COPY patches/port-exl3-glm53.py /tmp/port-exl3-glm53.py
+COPY patches/port-exl3-ep-glm53.py /tmp/port-exl3-ep-glm53.py
 COPY patches/port-exl3-mtp-glm53.py /tmp/port-exl3-mtp-glm53.py
 COPY patches/port-b12x-glm53.py /tmp/port-b12x-glm53.py
 COPY patches/port-b12x-kpool-glm53.py /tmp/port-b12x-kpool-glm53.py
@@ -68,6 +69,7 @@ COPY patches/port-b12x-dcp-owner-glm53.py /tmp/port-b12x-dcp-owner-glm53.py
 COPY patches/port-b12x-nvfp4-glm53.py /tmp/port-b12x-nvfp4-glm53.py
 COPY patches/port-b12x-glm-h64-query.py /tmp/port-b12x-glm-h64-query.py
 COPY patches/port-b12x-mhc-glm53.py /tmp/port-b12x-mhc-glm53.py
+COPY patches/port-glm53-mhc-warmup.py /tmp/port-glm53-mhc-warmup.py
 COPY patches/port-glm53-sm12-stability.py /tmp/port-glm53-sm12-stability.py
 COPY patches/b12x_pcie_all_reduce.py \
     /usr/local/lib/python3.12/dist-packages/vllm/distributed/device_communicators/b12x_pcie_all_reduce.py
@@ -88,6 +90,8 @@ COPY patches/port-dflash2-glm-kv.py /tmp/port-dflash2-glm-kv.py
 COPY patches/port-dflash2-replicated-dcp.py /tmp/port-dflash2-replicated-dcp.py
 RUN python3 /tmp/port-exl3-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-exl3-ep-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-exl3-mtp-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-glm53.py \
@@ -103,6 +107,8 @@ RUN python3 /tmp/port-exl3-glm53.py \
  && python3 /tmp/port-b12x-glm-h64-query.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-mhc-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-glm53-mhc-warmup.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-glm53-sm12-stability.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
@@ -177,12 +183,15 @@ import b12x
 import cutlass
 import torch
 import vllm
-from b12x.moe import fused_moe
-from b12x.attention import nsa_indexer, sparse_mla
+from b12x.moe import ep_moe, fused_moe
+from b12x.attention import dsa_indexer, sparse_mla
 from b12x.gemm import mla_query_projection
 from vllm.model_executor.layers.sparse_attn_indexer import SparseAttnIndexer
 from vllm.model_executor.layers.quantization import get_quantization_config
-from vllm.model_executor.layers.quantization.exl3 import Exl3Config
+from vllm.model_executor.layers.quantization.exl3 import (
+    Exl3Config,
+    _exl3_moe_weight_loader,
+)
 from vllm.model_executor.layers.mamba.mamba_utils import MambaStateShapeCalculator
 from vllm.model_executor.models.qwen3_dflash import DFlashQwen3Model
 from vllm.model_executor.models.qwen3_dflash2 import (
@@ -206,6 +215,13 @@ from vllm.v1.spec_decode.dynamic.adaptive_mtp import AdaptiveMTPController
 from vllm.v1.worker.gpu.spec_decode.dflash2.speculator import DFlash2Speculator
 from vllm.v1.attention.backends.mla.b12x_mla_sparse import B12xMLASparseBackend
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
+
+sparse_indexer_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
+    "sparse_attn_indexer.py"
+).read_text()
+assert "b12x.attention.nsa_indexer" not in sparse_indexer_source
+assert sparse_indexer_source.count("b12x.attention.dsa_indexer") == 13
 
 def entry(name: str):
     return {
@@ -279,12 +295,64 @@ assert callable(fused_moe.prepare_weights)
 assert callable(fused_moe.plan)
 assert callable(fused_moe.bind)
 assert callable(fused_moe.run)
+trellis_plan = fused_moe.plan_weights(
+    quant_modes="w4a16",
+    source_format="b12x_trellis",
+    activation="silu",
+    params_dtype=torch.bfloat16,
+    num_experts=2,
+    hidden_size=128,
+    intermediate_size=128,
+    trellis_bits=3,
+    trellis_codebook="mcg",
+    trellis_tile_config=(64, 128, 64, 128),
+)
+assert trellis_plan.source_format == "b12x_trellis"
+assert trellis_plan.trellis_codebook == "mcg"
+assert callable(ep_moe.prepare_expert_map)
+assert callable(ep_moe.plan)
+assert callable(ep_moe.bind)
+assert callable(ep_moe.run)
+rank1_map = tuple([-1] * 144 + list(range(144)))
+prepared_rank1_map = ep_moe.prepare_expert_map(
+    torch.tensor(rank1_map, dtype=torch.int32),
+    local_num_experts=144,
+    global_num_experts=288,
+)
+assert prepared_rank1_map.tensor[143].item() == -1
+assert prepared_rank1_map.tensor[144].item() == 0
+assert prepared_rank1_map.tensor[287].item() == 143
+loaded_local_ids = []
+fake_parameter = SimpleNamespace(
+    map_global_expert_id=lambda expert_id: rank1_map[expert_id],
+    load_exl3_weight=lambda _weight, *, expert_id, shard_id: (
+        loaded_local_ids.append((expert_id, shard_id))
+    ),
+)
+assert not _exl3_moe_weight_loader(
+    fake_parameter, torch.ones(1), "nonlocal", "w1", 143, return_success=True
+)
+assert _exl3_moe_weight_loader(
+    fake_parameter, torch.ones(1), "local", "w1", 144, return_success=True
+)
+assert loaded_local_ids == [(0, "w1")]
+exl3_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
+    "quantization/exl3.py"
+).read_text()
+assert "local_expert_id = param.map_global_expert_id(expert_id)" in exl3_source
+assert "if local_expert_id < 0:" in exl3_source
+assert "layer.exl3_prepared_ep_map" in exl3_source
+assert 'source_format="b12x_trellis"' in exl3_source
+assert 'trellis_codebook="mcg"' in exl3_source
+assert "marker_value = int(marker.item()) & 0xFFFFFFFF" in exl3_source
+assert "exl3_trellis_mcg" not in exl3_source
 assert callable(sparse_mla.plan)
 assert callable(sparse_mla.bind)
 assert callable(sparse_mla.run_decode)
 assert callable(sparse_mla.run_extend)
-assert callable(nsa_indexer.plan)
-assert callable(nsa_indexer.index_topk_fp8)
+assert callable(dsa_indexer.plan)
+assert callable(dsa_indexer.index_topk_fp8)
 assert callable(mla_query_projection.run_glm_h64_bf16)
 from b12x.norm import mhc
 assert callable(mhc.run_post_pre)
@@ -369,10 +437,14 @@ LABEL org.opencontainers.image.source="https://github.com/tpurtell/glm-5.3-flash
       io.tpurtell.exl3-source.digest="sha256:86c8c1054f9c24454949e37031ce6165c007963aa0c0ef30fa884f6d4170af32" \
       io.tpurtell.exl3-vllm.commit="30038602b71395f481ef4a6edfe4fcf8551d9c15" \
       io.tpurtell.dflash2-vllm.commit="b389ac29465b33f9e9c534df221ea3c129e9793f" \
-      io.tpurtell.b12x.commit="988246c8b007c9c1c2006eb677f6fa4b26aeb561"
+      io.tpurtell.b12x.commit="611ffe8712e40e9ed0110e3cfb1d0b7f4580e631"
+
+COPY container/glm53-entrypoint.sh /usr/local/bin/glm53-entrypoint
+COPY container/glm53-release-warmup.py /usr/local/bin/glm53-release-warmup.py
+RUN chmod 0755 /usr/local/bin/glm53-entrypoint
 
 EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30m --retries=5 \
-  CMD ["python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"]
+  CMD ["python3", "-c", "import pathlib,urllib.request; assert pathlib.Path('/tmp/glm53-release-ready').is_file(); urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).read()"]
 
-# Inherit the GLM base image's normal ["vllm", "serve"] entrypoint.
+ENTRYPOINT ["/usr/local/bin/glm53-entrypoint"]

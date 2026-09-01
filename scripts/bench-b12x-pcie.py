@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import torch
 import torch.distributed as dist
 
@@ -29,6 +30,7 @@ def main() -> None:
     parser.add_argument("--hidden-size", type=int, default=6144)
     parser.add_argument("--max-bytes", type=int, default=8 * 1024 * 1024)
     parser.add_argument("--rows", default="1,2,4,8,10,16,32,64,128,256,512")
+    parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
     dist.init_process_group("nccl")
@@ -130,16 +132,19 @@ def main() -> None:
         graphs.extend((b12x_graph, nccl_graph))
 
     if rank == 0:
-        print(
-            json.dumps(
-                {
-                    "eager": results,
-                    "cuda_graph": graph_results,
-                    "alternating_graphs": "pass",
-                },
-                indent=2,
-            )
-        )
+        report = {
+            "schema": "glm53-b12x-pcie-allreduce.v1",
+            "hidden_size": args.hidden_size,
+            "max_bytes": args.max_bytes,
+            "eager": results,
+            "cuda_graph": graph_results,
+            "alternating_graphs": "pass",
+        }
+        rendered = json.dumps(report, indent=2) + "\n"
+        print(rendered, end="")
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(rendered)
 
     pool.close()
     pynccl.destroy()

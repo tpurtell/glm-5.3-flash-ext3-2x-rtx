@@ -1,0 +1,64 @@
+{
+  "schema": "glm53-vllm-vision-limit.v1",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "sixteen_images": {
+    "passed": true,
+    "status": 200,
+    "expected": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "observed": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "response": "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",
+    "usage": {
+      "prompt_tokens": 4168,
+      "total_tokens": 4201,
+      "completion_tokens": 33,
+      "prompt_tokens_details": null
+    }
+  },
+  "seventeen_images_rejected": {
+    "passed": true,
+    "status": 400,
+    "response": {
+      "error": {
+        "message": "At most 16 image(s) may be provided in one prompt. (parameter=image)",
+        "type": "BadRequestError",
+        "param": "image",
+        "code": 400
+      }
+    }
+  },
+  "passed": true
+}

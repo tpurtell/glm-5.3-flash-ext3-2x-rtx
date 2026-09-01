@@ -1,0 +1,123 @@
+{
+  "schema": "glm53-decode-concurrency.v2",
+  "method": "one depth-0 prompt with n parallel continuations; aggregate decode timing spans first to last streamed token and excludes TTFT; the same sampling seed is repeated so MTP acceptance is comparable",
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "kv_cache_profile": "fp8",
+  "mtp_tokens": 5,
+  "mtp_policy": "off",
+  "output_tokens_per_sequence": 256,
+  "warmup_runs_per_point": 2,
+  "runs_per_point": 5,
+  "points": [
+    {
+      "concurrency": 16,
+      "aggregate_decode_tokens_per_second": {
+        "median": 618.8786189530238,
+        "min": 589.8136487059311,
+        "max": 623.7441346590615
+      },
+      "runs": [
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.592569003114477,
+          "decode_tokens_per_second": 618.8786189530238,
+          "ttft_ms": 43.64683595485985
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.798061189940199,
+          "decode_tokens_per_second": 600.1711202655254,
+          "ttft_ms": 44.9709240347147
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.58256262098439,
+          "decode_tokens_per_second": 619.8193978426377,
+          "ttft_ms": 125.34085591323674
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.541143673006445,
+          "decode_tokens_per_second": 623.7441346590615,
+          "ttft_ms": 108.1174029968679
+        },
+        {
+          "concurrency": 16,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 4096,
+          "decode_tokens": 4080,
+          "decode_seconds": 6.917439108015969,
+          "decode_tokens_per_second": 589.8136487059311,
+          "ttft_ms": 106.02497891522944
+        }
+      ]
+    },
+    {
+      "concurrency": 1,
+      "aggregate_decode_tokens_per_second": {
+        "median": 135.17249424744972,
+        "min": 122.08362741269728,
+        "max": 140.81559185589202
+      },
+      "runs": [
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.8864784690085799,
+          "decode_tokens_per_second": 135.17249424744972,
+          "ttft_ms": 40.4967931099236
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 2.0887321699410677,
+          "decode_tokens_per_second": 122.08362741269728,
+          "ttft_ms": 57.49411694705486
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.9821335289161652,
+          "decode_tokens_per_second": 128.64925408906964,
+          "ttft_ms": 57.924674125388265
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.8108790130354464,
+          "decode_tokens_per_second": 140.81559185589202,
+          "ttft_ms": 40.03544105216861
+        },
+        {
+          "concurrency": 1,
+          "output_tokens_per_sequence": 256,
+          "completion_tokens": 256,
+          "decode_tokens": 255,
+          "decode_seconds": 1.8848546990193427,
+          "decode_tokens_per_second": 135.28894303241097,
+          "ttft_ms": 40.75575293973088
+        }
+      ]
+    }
+  ]
+}

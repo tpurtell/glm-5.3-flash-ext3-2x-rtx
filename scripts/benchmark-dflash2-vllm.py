@@ -67,6 +67,7 @@ def metrics(base_url: str, timeout: float) -> dict[str, float]:
     ) as response:
         text = response.read().decode("utf-8", errors="replace")
     wanted = {
+        "vllm:spec_decode_num_drafts_total": "target_verification_passes",
         "vllm:spec_decode_num_draft_tokens_total": "draft_tokens",
         "vllm:spec_decode_num_accepted_tokens_total": "accepted_tokens",
     }
@@ -133,6 +134,7 @@ def stream_completion(
         payload.update({"min_tokens": output_tokens, "ignore_eos": True})
 
     before = metrics(base_url, timeout)
+    started_epoch = time.time()
     started = time.perf_counter()
     connection.request(
         "POST",
@@ -185,22 +187,54 @@ def stream_completion(
     first_token = min(times[0] for times in nonempty)
     last_token = max(times[-1] for times in nonempty)
     decode_tokens = sum(max(0, len(times) - 1) for times in token_times)
-    decode_seconds = last_token - first_token
+    batch_window_decode_seconds = last_token - first_token
+    sequence_decode_seconds = [times[-1] - times[0] for times in token_times]
+    sequence_decode_tokens_per_second = [
+        max(0, len(times) - 1) / seconds
+        for times, seconds in zip(
+            token_times, sequence_decode_seconds, strict=True
+        )
+    ]
+    pure_decode_tokens_per_second = sum(sequence_decode_tokens_per_second)
     drafted = after["draft_tokens"] - before["draft_tokens"]
     accepted = after["accepted_tokens"] - before["accepted_tokens"]
+    target_passes = (
+        after["target_verification_passes"]
+        - before["target_verification_passes"]
+    )
+    rejected = drafted - accepted
     return {
         "concurrency": concurrency,
         "prompt_tokens": len(prompt_tokens),
         "completion_tokens": sum(len(times) for times in token_times),
         "completion_tokens_by_sequence": [len(times) for times in token_times],
         "decode_tokens": decode_tokens,
-        "decode_seconds": decode_seconds,
-        "decode_tokens_per_second": decode_tokens / decode_seconds,
+        "decode_seconds": batch_window_decode_seconds,
+        "decode_tokens_per_second": pure_decode_tokens_per_second,
+        "batch_window_decode_seconds": batch_window_decode_seconds,
+        "batch_window_decode_tokens_per_second": (
+            decode_tokens / batch_window_decode_seconds
+        ),
+        "sequence_decode_tokens_per_second": sequence_decode_tokens_per_second,
         "ttft_ms": (first_token - started) * 1000,
         "request_seconds": ended - started,
+        "started_epoch_seconds": started_epoch,
+        "sequence_ttft_ms": [
+            (times[0] - started) * 1000 for times in token_times
+        ],
+        "sequence_decode_seconds": sequence_decode_seconds,
+        "sequence_finish_offset_seconds": [
+            times[-1] - started for times in token_times
+        ],
         "draft_tokens": int(drafted),
         "accepted_draft_tokens": int(accepted),
+        "rejected_draft_tokens": int(rejected),
         "accepted_draft_rate": accepted / drafted if drafted else 0.0,
+        "rejected_draft_rate": rejected / drafted if drafted else 0.0,
+        "target_verification_passes": int(target_passes),
+        "committed_tokens_per_target_pass": (
+            1.0 + accepted / target_passes if target_passes else 0.0
+        ),
         "finish_reasons": finish_reasons,
         "content": content,
         "usage": usage,
@@ -210,13 +244,23 @@ def stream_completion(
 def summarize_runs(runs: list[dict]) -> dict:
     rates = [run["decode_tokens_per_second"] for run in runs]
     acceptances = [run["accepted_draft_rate"] for run in runs]
+    target_pass_efficiencies = [
+        run["committed_tokens_per_target_pass"] for run in runs
+    ]
     return {
         "median_decode_tokens_per_second": statistics.median(rates),
         "min_decode_tokens_per_second": min(rates),
         "max_decode_tokens_per_second": max(rates),
         "median_accepted_draft_rate": statistics.median(acceptances),
+        "median_committed_tokens_per_target_pass": statistics.median(
+            target_pass_efficiencies
+        ),
         "draft_tokens": sum(run["draft_tokens"] for run in runs),
         "accepted_draft_tokens": sum(run["accepted_draft_tokens"] for run in runs),
+        "rejected_draft_tokens": sum(run["rejected_draft_tokens"] for run in runs),
+        "target_verification_passes": sum(
+            run["target_verification_passes"] for run in runs
+        ),
     }
 
 
@@ -234,6 +278,12 @@ def main() -> None:
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260829)
     parser.add_argument("--temperature", type=float, default=0.2)
+    parser.add_argument(
+        "--inter-run-seconds",
+        type=float,
+        default=0.0,
+        help="Optional idle interval after each request so benchmark samples do not overlap engine cleanup.",
+    )
     parser.add_argument("--timeout", type=float, default=3600)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -245,14 +295,18 @@ def main() -> None:
         args.timeout,
     )["tokens"]
     report: dict = {
-        "schema": "glm53-dflash2-vllm.v1",
+        "schema": "glm53-dflash2-vllm.v2",
         "model": args.model,
         "kv_cache": "fp8_ds_mla",
         "dflash_tokens": args.dflash_tokens,
         "suite": args.suite,
         "method": (
-            "decode timing spans the first through last streamed token and excludes "
-            "TTFT; DFlash acceptance is the matching Prometheus counter delta"
+            "each sequence is timed from its own first through last streamed token; "
+            "aggregate pure decode is the sum of per-sequence rates and excludes "
+            "each sequence's TTFT; the conservative first-any to last-any batch "
+            "window is retained separately; DFlash acceptance is the matching "
+            "Prometheus counter delta; target-pass efficiency is one target "
+            "bonus token plus accepted drafts per verification pass"
         ),
     }
 
@@ -274,6 +328,8 @@ def main() -> None:
                     seed=args.seed,
                     temperature=args.temperature,
                 )
+                if args.inter_run_seconds:
+                    time.sleep(args.inter_run_seconds)
             runs = []
             for run_index in range(args.runs):
                 result = stream_completion(
@@ -296,6 +352,8 @@ def main() -> None:
                     f"{result['accepted_draft_rate']:.1%} accepted",
                     flush=True,
                 )
+                if args.inter_run_seconds:
+                    time.sleep(args.inter_run_seconds)
             points.append(
                 {
                     "concurrency": concurrency,
@@ -310,6 +368,7 @@ def main() -> None:
                 "warmup_runs_per_point": args.warmup_runs,
                 "runs_per_point": args.runs,
                 "temperature": args.temperature,
+                "inter_run_seconds": args.inter_run_seconds,
                 "points": points,
             }
         )
@@ -362,6 +421,10 @@ def main() -> None:
         total_decode_seconds = sum(run["decode_seconds"] for run in all_runs)
         total_drafts = sum(run["draft_tokens"] for run in all_runs)
         total_accepted = sum(run["accepted_draft_tokens"] for run in all_runs)
+        total_rejected = sum(run["rejected_draft_tokens"] for run in all_runs)
+        total_target_passes = sum(
+            run["target_verification_passes"] for run in all_runs
+        )
         report.update(
             {
                 "glmrt_standard_seven_case_blend": True,
@@ -372,9 +435,19 @@ def main() -> None:
                     / total_decode_seconds,
                     "draft_tokens": total_drafts,
                     "accepted_draft_tokens": total_accepted,
+                    "rejected_draft_tokens": total_rejected,
                     "accepted_draft_rate": total_accepted / total_drafts
                     if total_drafts
                     else 0.0,
+                    "rejected_draft_rate": total_rejected / total_drafts
+                    if total_drafts
+                    else 0.0,
+                    "target_verification_passes": total_target_passes,
+                    "committed_tokens_per_target_pass": (
+                        1.0 + total_accepted / total_target_passes
+                        if total_target_passes
+                        else 0.0
+                    ),
                     "quality_passed": all(
                         run["quality_contract_passed"] for run in all_runs
                     ),
