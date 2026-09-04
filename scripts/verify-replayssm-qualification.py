@@ -189,6 +189,19 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
+    materializer = load(root / "kda-materializer.json")
+    expected_materializer = {
+        "schema": "glm53-kda-replayssm-materializer-v1",
+        "passed": True,
+        "metadata_stride": 8,
+        "contiguous_and_strided_outputs_identical": True,
+        "null_row_is_zero": True,
+    }
+    for key, value in expected_materializer.items():
+        if materializer.get(key) != value:
+            raise ValueError(f"KDA materializer {key} differs")
+    if float(materializer.get("maximum_absolute_error", 1.0)) > 0.02:
+        raise ValueError("KDA materializer numerical error exceeds tolerance")
     replay = validate_variant(
         root / "replayssm",
         model=args.model,
@@ -203,11 +216,18 @@ def main() -> int:
     )
     if replay["environment"]["image_id"] != control["environment"]["image_id"]:
         raise ValueError("ReplaySSM and full-state control used different images")
+    candidate_image_id = (root / "candidate-image-id.txt").read_text(
+        encoding="utf-8"
+    ).strip()
+    if candidate_image_id != replay["environment"]["image_id"]:
+        raise ValueError("materializer and server tests used different images")
     if replay["environment"]["model_artifact"] != control["environment"][
         "model_artifact"
     ]:
         raise ValueError("ReplaySSM and full-state control used different model artifacts")
     receipt_paths = (
+        Path("candidate-image-id.txt"),
+        Path("kda-materializer.json"),
         Path("replayssm/environment.json"),
         Path("replayssm/stress/summary.json"),
         Path("replayssm/startup-jit-audit.json"),
@@ -224,6 +244,7 @@ def main() -> int:
         "image_id": replay["environment"]["image_id"],
         "model_artifact": replay["environment"]["model_artifact"],
         "power_limit_watts_per_gpu": args.power_limit,
+        "kda_materializer": materializer,
         "replayssm_requests": replay["stress"]["total_requests"],
         "full_state_control_requests": control["stress"]["total_requests"],
         "receipts": {

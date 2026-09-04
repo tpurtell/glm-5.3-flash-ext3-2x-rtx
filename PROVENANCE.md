@@ -169,7 +169,9 @@ cursor kernels; the KDA prefix materializer now carries explicit strides for
 all four row tensors as well and reports every row count on invariant failure.
 
 This is still a release hypothesis until exercised on the target GPUs. The
-K3.25 release gate runs `scripts/test-replayssm-stress.py` with ReplaySSM on:
+K3.25 release gate first compares the KDA prefix materializer with a Torch
+reference while all four request-row inputs are deliberately non-contiguous.
+It then runs `scripts/test-replayssm-stress.py` with ReplaySSM on:
 exact 32,768-token prompts, C4, 40 thinking-off shared-prefix requests, 40
 maximum-thinking shared-prefix requests, and 40 maximum-thinking unique-prefix
 requests. It retains raw SSE, rejects repeated-subword streams, requires exact

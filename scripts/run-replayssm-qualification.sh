@@ -21,11 +21,48 @@ if [[ ! -d "${MODEL_DIR}" ]]; then
   exit 2
 fi
 MODEL_DIR="$(realpath -e -- "${MODEL_DIR}")"
+command -v docker >/dev/null
+command -v nvidia-smi >/dev/null
+busy_pids="$({
+  nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null || true
+} | awk '$1 ~ /^[0-9]+$/ {print $1}' | sort -u)"
+if [[ -n "${busy_pids}" ]]; then
+  echo "ReplaySSM qualification requires idle GPUs; active PIDs: $(tr '\n' ' ' <<<"${busy_pids}")" >&2
+  exit 2
+fi
+gpu_caps="$(nvidia-smi --query-gpu=index,power.limit --format=csv,noheader,nounits)"
+if ! awk -F, -v expected="${POWER_LIMIT_WATTS}" '
+  BEGIN { count = 0; bad = 0 }
+  {
+    count += 1
+    power = $2
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", power)
+    delta = power - expected
+    if (delta < 0) delta = -delta
+    if (delta > 0.05) bad = 1
+  }
+  END { if (count != 2 || bad) exit 1 }
+' <<<"${gpu_caps}"; then
+  echo "ReplaySSM qualification requires exactly two GPUs at ${POWER_LIMIT_WATTS} W" >&2
+  exit 2
+fi
 if [[ -e "${OUTPUT_DIR}" ]]; then
   echo "OUTPUT_DIR already exists; refusing to mix receipts: ${OUTPUT_DIR}" >&2
   exit 2
 fi
 mkdir -p "${OUTPUT_DIR}"
+OUTPUT_DIR="$(realpath -e -- "${OUTPUT_DIR}")"
+docker image inspect --format '{{.Id}}' "${IMAGE}" >"${OUTPUT_DIR}/candidate-image-id.txt"
+
+docker run --rm \
+  --gpus all \
+  --ipc=host \
+  --entrypoint python3 \
+  --volume "${SCRIPT_DIR}/test-replayssm-kda-materializer.py:/tmp/test-replayssm-kda-materializer.py:ro" \
+  --volume "${OUTPUT_DIR}:/results" \
+  "${IMAGE}" \
+  /tmp/test-replayssm-kda-materializer.py \
+  --output /results/kda-materializer.json
 
 cleanup() {
   if [[ -n "${active_container}" ]] && docker inspect "${active_container}" >/dev/null 2>&1; then
