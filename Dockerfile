@@ -9,7 +9,7 @@ FROM ${EXL3_SOURCE_IMAGE} AS exl3_source
 FROM ${GLM_BASE_IMAGE}
 
 ARG B12X_REPOSITORY=https://github.com/tpurtell/sparkinfer-glmrt
-ARG B12X_COMMIT=611ffe8712e40e9ed0110e3cfb1d0b7f4580e631
+ARG B12X_COMMIT=c90cd0080274b90da4721f8ab7536bca29cae720
 ARG DFLASH2_VLLM_COMMIT=b389ac29465b33f9e9c534df221ea3c129e9793f
 
 SHELL ["/bin/bash", "-c"]
@@ -60,6 +60,7 @@ COPY --from=exl3_source \
 COPY patches/port-exl3-glm53.py /tmp/port-exl3-glm53.py
 COPY patches/port-exl3-ep-glm53.py /tmp/port-exl3-ep-glm53.py
 COPY patches/port-exl3-mtp-glm53.py /tmp/port-exl3-mtp-glm53.py
+COPY patches/port-exl3-projection-mixed-glm53.py /tmp/port-exl3-projection-mixed-glm53.py
 COPY patches/port-b12x-glm53.py /tmp/port-b12x-glm53.py
 COPY patches/port-b12x-kpool-glm53.py /tmp/port-b12x-kpool-glm53.py
 COPY patches/b12x_dcp_topk.py \
@@ -93,6 +94,8 @@ RUN python3 /tmp/port-exl3-glm53.py \
  && python3 /tmp/port-exl3-ep-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-exl3-mtp-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-exl3-projection-mixed-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
@@ -184,6 +187,8 @@ import cutlass
 import torch
 import vllm
 from b12x.moe import ep_moe, fused_moe
+from b12x.moe.fused_moe._impl import _projection_mixed_route_map
+from b12x.moe.fused_moe.trellis import ProjectionTrellisTierWeights
 from b12x.attention import dsa_indexer, sparse_mla
 from b12x.gemm import mla_query_projection
 from vllm.model_executor.layers.sparse_attn_indexer import SparseAttnIndexer
@@ -223,9 +228,9 @@ sparse_indexer_source = Path(
 assert "b12x.attention.nsa_indexer" not in sparse_indexer_source
 assert sparse_indexer_source.count("b12x.attention.dsa_indexer") == 13
 
-def entry(name: str):
+def entry(name: str, bits: int):
     return {
-        "bits_per_weight": 3,
+        "bits_per_weight": bits,
         "quant_format": "exl3",
         "stored_tensors": {
             f"{name}.suh": {},
@@ -235,14 +240,23 @@ def entry(name: str):
         },
     }
 
-root = "model.language_model.layers.3.mlp.experts.0"
-storage = {
-    f"{root}.gate_proj": entry(f"{root}.gate_proj"),
-    f"{root}.up_proj": entry(f"{root}.up_proj"),
-    f"{root}.down_proj": entry(f"{root}.down_proj"),
-}
-config = Exl3Config(bits=3, codebook="mcg", tensor_storage=storage)
-config._configure_standard_fused_moe(SimpleNamespace(model_type="glm5_next"))
+storage = {}
+for expert_id, rates in enumerate(((3, 4, 3), (4, 3, 4))):
+    root = f"model.language_model.layers.3.mlp.experts.{expert_id}"
+    for projection, bits in zip(
+        ("gate_proj", "up_proj", "down_proj"), rates, strict=True
+    ):
+        name = f"{root}.{projection}"
+        storage[name] = entry(name, bits)
+for expert_id in range(2):
+    root = f"mtp.0.mlp.experts.{expert_id}"
+    for projection in ("gate_proj", "up_proj", "down_proj"):
+        name = f"{root}.{projection}"
+        storage[name] = entry(name, 3)
+config = Exl3Config(bits=3.25, codebook="mcg", tensor_storage=storage)
+config._configure_standard_fused_moe(
+    SimpleNamespace(model_type="glm5_next", num_hidden_layers=45)
+)
 config._configure_base_quantization(SimpleNamespace(model_type="glm5_next"))
 
 assert get_quantization_config("exl3") is Exl3Config
@@ -271,6 +285,12 @@ adaptive_probe = AdaptiveMTPController(max_depth=5, probe_interval=4)
 assert adaptive_probe.select(["c1"], 1, 5) == 5
 assert adaptive_probe.select(["c8"], 8, 1) == 1
 assert config.standard_fused_moe
+assert config.standard_layer_projection_bitrates(
+    "model.layers.3.mlp", 2
+) == ((3, 4, 3), (4, 3, 4))
+assert config.standard_layer_projection_bitrates(
+    "model.layers.45.mlp", 2
+) == ((3, 3, 3), (3, 3, 3))
 assert config._base_quant_config is None
 assert config._moe_prefix_is_exl3(
     "language_model.model.layers.3.mlp.experts"
@@ -295,6 +315,40 @@ assert callable(fused_moe.prepare_weights)
 assert callable(fused_moe.plan)
 assert callable(fused_moe.bind)
 assert callable(fused_moe.run)
+assert ProjectionTrellisTierWeights is not None
+projection_plan = fused_moe.plan_weights(
+    quant_modes="w4a16",
+    source_format="exl3_trellis_mcg",
+    activation="silu",
+    params_dtype=torch.bfloat16,
+    num_experts=144,
+    hidden_size=128,
+    intermediate_size=128,
+    w13_layout="trellis_t256_proj",
+    w4a16_layout="trellis_native",
+    trellis_bits=3,
+    trellis_codebook="mcg",
+    trellis_rate_granularity="per_expert_projection",
+)
+assert projection_plan.trellis_tile_config is None
+projection_caps = fused_moe.Caps(
+    max_tokens=1,
+    num_topk=6,
+    route_num_experts=288,
+    device="cpu",
+    weight_plan=projection_plan,
+    quant_mode="w4a16",
+)
+assert fused_moe.required_nbytes(projection_caps) > 0
+precomposed_map = torch.tensor(
+    list(range(144)) + [-1] * 144, dtype=torch.int32
+)
+assert _projection_mixed_route_map(
+    torch.arange(144, dtype=torch.int32),
+    precomposed_map,
+    route_num_experts=288,
+    device=torch.device("cpu"),
+).data_ptr() == precomposed_map.data_ptr()
 trellis_plan = fused_moe.plan_weights(
     quant_modes="w4a16",
     source_format="b12x_trellis",
@@ -346,7 +400,7 @@ assert "layer.exl3_prepared_ep_map" in exl3_source
 assert 'source_format="b12x_trellis"' in exl3_source
 assert 'trellis_codebook="mcg"' in exl3_source
 assert "marker_value = int(marker.item()) & 0xFFFFFFFF" in exl3_source
-assert "exl3_trellis_mcg" not in exl3_source
+assert 'source_format="exl3_trellis_mcg"' in exl3_source
 assert callable(sparse_mla.plan)
 assert callable(sparse_mla.bind)
 assert callable(sparse_mla.run_decode)

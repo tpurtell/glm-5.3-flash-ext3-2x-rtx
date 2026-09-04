@@ -53,6 +53,7 @@ IMAGE=glm53-dflash2:local ./start.sh
 
 | Knob | Default | Purpose |
 |---|---:|---|
+| `MODEL_PROFILE` | `k3` | Select the immutable target pair; K3.25 becomes the release default after its public revision is validated |
 | `SPECULATIVE_METHOD` | `dflash2` | Use the DFlash2 block-diffusion drafter |
 | `DFLASH_TOKENS` | `5` | Best measured agent-workload compromise |
 | `DFLASH_KV_CACHE_DTYPE` | `bfloat16` | Quality-preserving cache for the small draft model |
@@ -76,6 +77,8 @@ The local port gives the replicated DFlash attention group a 128-token allocatio
 K5 remains the default because it reaches 222.6 tok/s at C1 while retaining 1,067.2 tok/s aggregate at C16 on the release workload. K3 remains an explicit throughput-oriented control from the previous tuning sweep; K7 over-drafted on this hardware.
 
 ```bash
+MODEL_PROFILE=k4 ./download.sh         # Brandon's current uniform-K4 target
+MODEL_PROFILE=k4 ./start.sh
 DFLASH_TOKENS=3 ./start.sh             # loaded-throughput profile
 DFLASH_TOKENS=7 ./start.sh             # accepted, but not the measured winner
 SPECULATIVE_METHOD=none ./start.sh      # target-only control
@@ -83,6 +86,11 @@ SPECULATIVE_METHOD=mtp ./start.sh       # request-local adaptive MTP K1…K5
 LANGUAGE_MODEL_ONLY=1 ./start.sh        # disable the vision path
 KV_CACHE_PROFILE=nvfp4 ./start.sh       # optional lower-precision target cache
 ```
+
+`MODEL_PROFILE=k3` and `MODEL_PROFILE=k4` pin both the repository and its
+revision. For another checkpoint, set `MODEL_ID` and `MODEL_REVISION` together;
+the launcher rejects half-overrides so it cannot combine one model with
+another model's commit.
 
 Current vLLM DFlash2 executes one fixed K for the active fused batch. It does not yet expose request-local, within-request K adaptation like this recipe's alternate MTP controller. DFlash acceptance is very workload-dependent: K5 won the code-agent balance, while K3 won the C16 tuning point. A real adaptive DFlash policy needs to control the block-diffusion proposal/selector inside a request; swapping profiles only between requests would miss the point.
 
@@ -103,7 +111,8 @@ This is a pinned runtime composition, not a lucky pile of launcher flags:
 - GLM-5.3 EAGLE3/DFlash target taps after mHC, plus the GLM decoder-layer indirection needed by the drafter.
 - An independent DFlash KV group: the target remains DCP2 while the small dense draft attention/cache is correctly replicated at DCP1 on both ranks.
 - A 128-token replicated draft-cache allocation block and DFlash-aware target prefix hashes, avoiding waste and cross-group cache contamination.
-- EXL3 K3 mixed-checkpoint loading for GLM routed experts, including global-to-local expert loading and B12x TP2+EP2 execution for GLM's 288-global/144-local-expert geometry.
+- EXL3 fixed-tier K3/K4 and adjacent projection-mixed loading for GLM routed experts. The mixed path preserves each projection's integral K value, prepares native B12x tier descriptors, and composes the 288-global/144-local EP2 route map once at load time.
+- B12x projection-mixed decode/prefill uses live-shape Trellis tile selection and allocation-free graph replay; uniform checkpoints retain the existing fixed-layout kernel path.
 - Graph-stable MCG Trellis full-rotation scratch and route arenas, with numerical rank-partial parity and changed/empty-route CUDA graph replay gates.
 - B12x sparse MLA, paged K-pool score/top-k, DCP2 global owner exchange, graph-admitted PCIe DCP A2A, PCIe one-shot TP all-reduce, GLM H64 query projection, and batch-1 mHC fusion.
 - A release-ready entrypoint that prewarms GLM mHC, route, DFlash, sampler, long-prefill, and C16 specializations before exposing a healthy container.

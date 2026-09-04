@@ -7,17 +7,19 @@ This recipe consumes finished Hugging Face target and draft checkpoints and comp
 | Component | Immutable source |
 |---|---|
 | Served target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@1e4abd26e4e1e8d58d81fbd557d6c4099352fe63` |
+| Supported uniform-K4 target | `brandonmusic/GLM-5.3-Flash-tr3-4bpw@aba59d2175e1ee2887ae0ae1300ba848b1deed84` |
 | Target source | `zai-org/GLM-5.3-Flash-BF16@f12e0fe1f6b2ea274c11a569582edfd99d993c5e` |
 | Corrected chat-template source | `zai-org/GLM-5.3-Flash-BF16@a5b45eb41df6402735dedc900be14a42e8d5e538` |
 | DFlash2 draft | `incoai/GLM-5.3-Flash-DFlash2@bf582e4eacc1810f76656d1811693ff6c6737d2a` |
 | GPTQModel quant writer | `tpurtell/GPTQModel@0565af7ce20a93df9bbc0e5563d7c6f60916f41a` |
 | GPTQModel compact-config follow-up | `tpurtell/GPTQModel@a64900815b30ef01c2221b2788701a7986e50491` |
+| K3.25 GPTQModel writer | `tpurtell/GPTQModel@a053382584fa58cba7bf212ef1b829d08b29b2c0` |
 | GLM/vLLM base | `cstechdev/vllm:glm53-flash-nope-sm120-cu130-20260826-r1@sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5` |
 | vLLM in base | `0.1.dev20051+g487ecf187` |
 | vLLM DFlash2 delta | `vllm-project/vllm@b389ac29465b33f9e9c534df221ea3c129e9793f` (PR `#52816`) |
 | EXL3 runtime source image | `ghcr.io/tpurtell/deepseek-v4-flash-0731-exl3-k2-spark@sha256:86c8c1054f9c24454949e37031ce6165c007963aa0c0ef30fa884f6d4170af32` |
 | EXL3 vLLM fork commit | `30038602b71395f481ef4a6edfe4fcf8551d9c15` |
-| B12x fork | `tpurtell/sparkinfer-glmrt@611ffe8712e40e9ed0110e3cfb1d0b7f4580e631` |
+| B12x fork | `tpurtell/sparkinfer-glmrt@c90cd0080274b90da4721f8ab7536bca29cae720` |
 | ReplaySSM base | vLLM PRs `#48792`, `#49847`, and `#49887`, ported onto the pinned vLLM commit |
 | Dynamic-MTP graph fix | vLLM PR `#49652`, ported onto the pinned vLLM commit |
 | Runtime stack | Torch 2.13, CUDA 13, CUTLASS DSL 4.6.2 |
@@ -112,13 +114,39 @@ The v0.6 B12x/EP2 work adds:
   sampled C16 passes. This moves every observed route, DFlash, sampler,
   sparse-indexer, and mHC first-use compilation before the ready marker.
 
+The K3.25 runtime update adds a second, projection-native EXL3 path without
+replacing the qualified uniform-K3 path:
+
+- It derives each expert's integral gate/up/down K value from the external
+  EXL3 tensor manifest. The checkpoint-level `3.25` value is descriptive;
+  executable projections remain exactly K3 or K4.
+- It prepares B12x `ProjectionTrellisTierWeights` using the live-shape
+  `trellis_t256_proj` selector. Uniform K3 and K4 checkpoints continue through
+  the fixed `b12x_trellis` layout and keep their existing kernel policy.
+- Under EP2, vLLM composes the immutable 288-global-to-144-local expert map
+  with B12x's local-expert-to-tier map once while loading each layer. Decode
+  and prefill then bind one precomputed global-route-to-tier map with no live
+  allocation or route reordering.
+- B12x `c90cd008...` admits that larger route namespace, preserves the
+  projection-mixed live tile selector, and fails closed on route-map dtype,
+  extent, device, and contiguity drift. Its focused planning suite passed
+  69 tests with two device-only skips; the neighboring Trellis/TP scratch
+  suites passed 51 tests with 25 device-only skips.
+
+Before GPU qualification, the composed image passed its build probe, the
+projection port's complete idempotence pass, and a full-manifest regression
+gate over the published K3 model: all 37,152 routed projections across layers
+3--45 remained uniform K3 and selected the fixed-tier metadata path. These are
+source/metadata gates, not substitutes for the required K3.25 GPU performance
+and numerical qualification.
+
 The pre-existing local work remains available:
 
 - GLM K3 routed-expert/MTP mappings for the mixed EXL3 checkpoint.
 - Vector-gated KDA ReplaySSM, compact state accounting, and request-lifetime adaptive MTP as an alternate speculative method.
 - The bounded EXL3 prefill arena and GLM-specific B12x sparse-MLA, K-pool, DCP2, PCIe collective, query-projection, mHC, NVFP4, and FP8 cache ports.
 
-Build-time probes check target/draft architecture recognition, the DFlash2 V2 speculator, GLM EAGLE3 support, EXL3 registration, ReplaySSM/adaptive policy imports, B12x APIs, compact cache layouts, head geometry, and exact runtime versions.
+Build-time probes check target/draft architecture recognition, the DFlash2 V2 speculator, GLM EAGLE3 support, EXL3 registration, uniform and per-projection Trellis plans, the EP route namespace, ReplaySSM/adaptive policy imports, B12x APIs, compact cache layouts, head geometry, and exact runtime versions.
 
 Current recipe launcher/build hashes. The v0.6.1 target-metadata patch and the
 subsequent DFlash2 checkpoint refresh change only host-side model revision

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODEL_ID="${MODEL_ID:-wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1}"
-MODEL_REVISION="${MODEL_REVISION:-1e4abd26e4e1e8d58d81fbd557d6c4099352fe63}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=model-profiles.sh
+source "${SCRIPT_DIR}/model-profiles.sh"
+resolve_glm53_model_profile
 DFLASH_MODEL_ID="${DFLASH_MODEL_ID:-incoai/GLM-5.3-Flash-DFlash2}"
 DFLASH_MODEL_REVISION="${DFLASH_MODEL_REVISION:-bf582e4eacc1810f76656d1811693ff6c6737d2a}"
 HF_CACHE_DIR="${HF_HOME:-${HOME}/.cache/huggingface}"
