@@ -9,7 +9,7 @@ This recipe consumes finished Hugging Face target and draft checkpoints and comp
 | Served target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@1e4abd26e4e1e8d58d81fbd557d6c4099352fe63` |
 | Target source | `zai-org/GLM-5.3-Flash-BF16@f12e0fe1f6b2ea274c11a569582edfd99d993c5e` |
 | Corrected chat-template source | `zai-org/GLM-5.3-Flash-BF16@a5b45eb41df6402735dedc900be14a42e8d5e538` |
-| DFlash2 draft | `incoai/GLM-5.3-Flash-DFlash2@dc77ff1c99eeb2df044ee3d4f0094eb033fee410` |
+| DFlash2 draft | `incoai/GLM-5.3-Flash-DFlash2@bf582e4eacc1810f76656d1811693ff6c6737d2a` |
 | GPTQModel quant writer | `tpurtell/GPTQModel@0565af7ce20a93df9bbc0e5563d7c6f60916f41a` |
 | GPTQModel compact-config follow-up | `tpurtell/GPTQModel@a64900815b30ef01c2221b2788701a7986e50491` |
 | GLM/vLLM base | `cstechdev/vllm:glm53-flash-nope-sm120-cu130-20260826-r1@sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5` |
@@ -120,15 +120,16 @@ The pre-existing local work remains available:
 
 Build-time probes check target/draft architecture recognition, the DFlash2 V2 speculator, GLM EAGLE3 support, EXL3 registration, ReplaySSM/adaptive policy imports, B12x APIs, compact cache layouts, head geometry, and exact runtime versions.
 
-Current recipe launcher/build hashes. The v0.6.1 metadata-only patch changes
-the host-side model revision pin; it does not require a new serving image:
+Current recipe launcher/build hashes. The v0.6.1 target-metadata patch and the
+subsequent DFlash2 checkpoint refresh change only host-side model revision
+pins; neither requires a new serving image:
 
 | File | SHA-256 |
 |---|---|
 | `Dockerfile` | `e99e89491f4b7a918c632b5737e275fb8aa1944dd51d3c4d618d205d5d3e791b` |
 | `build.sh` | `853a2a90245bc599ab01277246362dcdb9c789875ef564fbdc83d5b1a753b7cd` |
-| `download.sh` | `66cfd2f3b9f3bc0ffe917bf649d68d0a70ee8e23c61f28792798056b90b7c6f9` |
-| `start.sh` | `d33e96bc36d497f823256d0c18dba05d7ce1bec374ac6873923a1b2b2346f70b` |
+| `download.sh` | `21fb60b08ed01342e0fa5a3077ca3e3a3ffd26336f629373127ddb00afc88ec7` |
+| `start.sh` | `d1d697e7bfbb0915a2205af861135295c7e43db4753aee448972346c9a3c305e` |
 | `container/glm53-entrypoint.sh` | `c1de8b073277b8edfb5c85c7c8d83ee511593d77d271c26a7ddf4d1e1c5abc8d` |
 | `container/glm53-release-warmup.py` | `7324b284a838063f18d29c40dda5c2e329b3133493b76bb518006aec534c0b9d` |
 
