@@ -6,6 +6,10 @@ This recipe serves [`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1`](https://huggingf
 
 The default profile is DFlash2 K5, FP8 MLA cache, TP2+EP2, target DCP2, a replicated draft, 16 scheduler slots, vision for up to 16 images, a 1,048,576-token model limit, and the qualified B12x PCIe paths.
 
+`v0.6.1` is a recipe/model-metadata patch that pins Z.ai's corrected chat
+template. It intentionally reuses the `v0.6.0` container because no serving
+runtime, kernel, or model tensor changed.
+
 ## The fun numbers
 
 | DFlash2 + FP8 release highlight | Measured result |
@@ -82,7 +86,14 @@ KV_CACHE_PROFILE=nvfp4 ./start.sh       # optional lower-precision target cache
 
 Current vLLM DFlash2 executes one fixed K for the active fused batch. It does not yet expose request-local, within-request K adaptation like this recipe's alternate MTP controller. DFlash acceptance is very workload-dependent: K5 won the code-agent balance, while K3 won the C16 tuning point. A real adaptive DFlash policy needs to control the block-diffusion proposal/selector inside a request; swapping profiles only between requests would miss the point.
 
-Vision uses the official Z.ai multimodal processor and chat template restored in target revision `319d66a…`. The release test sent 16 generated numbered images and received the exact ordered list `1…16`; a 17-image request received HTTP 400. DFlash receives text-side draft inputs for multimodal requests while the target model performs the actual vision encoding and verification.
+The launcher pins target revision `1e4abd2…`, which carries Z.ai's corrected
+GLM-5.3 chat template from upstream `a5b45eb…`. The patch fixes null assistant
+content and tool-result reordering without changing tokenizer metadata, model
+weights, or quantization tensors. The v0.6.0 release test used the preceding
+metadata revision with the same weights: 16 generated numbered images returned
+the exact ordered list `1…16`, while image 17 received HTTP 400. DFlash receives
+text-side draft inputs for multimodal requests while the target model performs
+the actual vision encoding and verification.
 
 ## What differs from stock vLLM
 

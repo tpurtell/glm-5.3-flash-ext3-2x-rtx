@@ -1,0 +1,38 @@
+{
+  "schema": "glm53-chat-template-sync.v1",
+  "checked_at": "2026-09-04T09:18:33Z",
+  "upstream": {
+    "repository": "zai-org/GLM-5.3-Flash-BF16",
+    "revision": "a5b45eb41df6402735dedc900be14a42e8d5e538",
+    "chat_template_sha256": "0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5"
+  },
+  "published_target": {
+    "repository": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+    "previous_revision": "180a1f118595725491b29e6e1a24785622371a64",
+    "revision": "1e4abd26e4e1e8d58d81fbd557d6c4099352fe63",
+    "only_chat_template_tree_identity_changed": true,
+    "chat_template_sha256": "0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5",
+    "tokenizer_config_sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc",
+    "config_sha256": "e445e0443e7fce59943297323ff388e72c973f0e0a0f43b881be5ba55765e572",
+    "quant_shards": 16,
+    "quant_shard_bytes": 136686260192,
+    "quant_shard_oids_unchanged": true
+  },
+  "local_cache": {
+    "refs_main": "1e4abd26e4e1e8d58d81fbd557d6c4099352fe63",
+    "hf_cache_verify_files": 35,
+    "incomplete_files": 0,
+    "all_16_quant_shard_symlink_targets_reused": true,
+    "quant_redownloaded": false
+  },
+  "render_checks": {
+    "release_container_transformers_compile": true,
+    "cached_snapshot_auto_processor": true,
+    "ordinary_chat_generation_prompt": true,
+    "null_assistant_content": true,
+    "out_of_order_tool_results": true,
+    "invalid_tool_id_fallback": true
+  },
+  "gpu_serving_run_performed": false,
+  "passed": true
+}

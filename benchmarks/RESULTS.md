@@ -15,6 +15,12 @@ DCP2 AG/RS, graph-captured B12x DCP substitution, FP8 target MLA, replicated
 BF16 DFlash cache, DFlash2 K5, 16 scheduler slots, 2,048 batched tokens,
 1,048,576 maximum length, and GPU memory utilization 0.950.
 
+The v0.6.1 recipe now pins metadata-only target revision `1e4abd2…`, which
+syncs Z.ai's corrected chat template while retaining identical model and
+quantization objects. These performance and quality receipts remain labeled
+with the exact `319d66a…` revision on which they ran; they were not rerun or
+silently relabeled for a template-only patch.
+
 ## What changed and what won
 
 The only new material serving flag relative to v0.5 is

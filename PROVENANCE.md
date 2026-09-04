@@ -6,8 +6,9 @@ This recipe consumes finished Hugging Face target and draft checkpoints and comp
 
 | Component | Immutable source |
 |---|---|
-| Served target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@319d66a8b53092b491f698440ecea781e4ddd4e4` |
+| Served target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@1e4abd26e4e1e8d58d81fbd557d6c4099352fe63` |
 | Target source | `zai-org/GLM-5.3-Flash-BF16@f12e0fe1f6b2ea274c11a569582edfd99d993c5e` |
+| Corrected chat-template source | `zai-org/GLM-5.3-Flash-BF16@a5b45eb41df6402735dedc900be14a42e8d5e538` |
 | DFlash2 draft | `incoai/GLM-5.3-Flash-DFlash2@dc77ff1c99eeb2df044ee3d4f0094eb033fee410` |
 | GPTQModel quant writer | `tpurtell/GPTQModel@0565af7ce20a93df9bbc0e5563d7c6f60916f41a` |
 | GPTQModel compact-config follow-up | `tpurtell/GPTQModel@a64900815b30ef01c2221b2788701a7986e50491` |
@@ -43,29 +44,38 @@ The DFlash2 checkpoint is a 1B-parameter BF16 draft model and is not a standalon
 
 ## Target identity and metadata repair
 
-Revision `319d66a…` is public, ungated, and contains the same 16 target weight shards as the previously qualified compact-config revision. It adds/restores the official multimodal processor, tokenizer configuration, generation configuration, and Z.ai chat template required for image inputs. No quant weights were downloaded or regenerated to perform that repair; the Hugging Face cache was relinked to the already present immutable blobs.
+Revision `1e4abd2…` is public and ungated. It descends from `319d66a…`, which
+restored the official multimodal processor, tokenizer configuration, generation
+configuration, and Z.ai chat template required for image inputs. The newer
+revision changes only `chat_template.jinja`, copying the exact corrected file
+from Z.ai revision `a5b45eb…`. All other path, Git object, size, and LFS
+identities—including all 16 quant shards—are unchanged from the prior public
+head. No quant weights were downloaded or regenerated; the local HF cache made
+a new immutable snapshot by relinking the existing shard blobs.
 
 Release metadata hashes:
 
 | File | SHA-256 |
 |---|---|
 | `config.json` | `e445e0443e7fce59943297323ff388e72c973f0e0a0f43b881be5ba55765e572` |
-| `chat_template.jinja` | `34d5ee66b12fa6446cdae131c352b8f68cd85369e0e6fda115583805fada3891` |
+| `chat_template.jinja` | `0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5` |
 | `processor_config.json` | `aae38374c94b08cc9b0547c6e64f05b951bd9735cea571c6988f5ed552bed3ed` |
 | `tokenizer_config.json` | `98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc` |
 | `generation_config.json` | `230c30609ecbbb9e6583bedde8e7bdda0c6eb8fe5fad0eaeb3d1b293d751cb4f` |
 
 The compact `config.json` deliberately does not embed the duplicate 32.8 MB EXL3 `tensor_storage` map. The complete tensor map remains in the external quantization manifests. The launcher validates the index, every referenced shard, the EXL3 manifest, official processor metadata, and DFlash2 architecture before starting Docker.
 
-On 2026-09-01, the pinned config was 10,951 bytes, parsed as ordinary JSON
-and through `PretrainedConfig.get_config_dict`, and resolved through the
-release vLLM path as `Glm5NextConfig` / `Glm5NextForConditionalGeneration`.
-The public Hugging Face API reported `model_type=glm5_next`,
-`pipeline_tag=image-text-to-text`, and no model-card parse error. Hugging
-Face's current repository head was `180a1f118595725491b29e6e1a24785622371a64`;
-the serving recipe deliberately remains pinned to the separately qualified
-immutable snapshot `319d66a…`. The machine-readable check is
-[`release-hf-config-parse.json`](benchmarks/v0.6.0-b12x-ep2/release-hf-config-parse.json).
+The unchanged compact config is 10,951 bytes, parses as ordinary JSON and
+through `PretrainedConfig.get_config_dict`, and resolves through the release
+vLLM path as `Glm5NextConfig` / `Glm5NextForConditionalGeneration`. On
+2026-09-04, the public Hugging Face API reported head `1e4abd2…`,
+`model_type=glm5_next`, `pipeline_tag=image-text-to-text`, and no model-card
+parse error. The corrected template compiled and rendered through the release
+container's `AutoProcessor`, covering ordinary chat, null assistant content,
+out-of-order tool results, and invalid-ID fallback. The complete local snapshot
+passed `hf cache verify` for 35 files. Machine-readable checks are the original
+[`release config receipt`](benchmarks/v0.6.0-b12x-ep2/release-hf-config-parse.json)
+and the [`template-sync receipt`](benchmarks/chat-template-sync-20260904.json).
 
 The GPTQModel commits are listed only to establish how the public target was
 written and packaged. Quantization ran at `0565af7…`; `a649008…` later kept the
@@ -110,13 +120,15 @@ The pre-existing local work remains available:
 
 Build-time probes check target/draft architecture recognition, the DFlash2 V2 speculator, GLM EAGLE3 support, EXL3 registration, ReplaySSM/adaptive policy imports, B12x APIs, compact cache layouts, head geometry, and exact runtime versions.
 
-Release launcher/build hashes:
+Current recipe launcher/build hashes. The v0.6.1 metadata-only patch changes
+the host-side model revision pin; it does not require a new serving image:
 
 | File | SHA-256 |
 |---|---|
 | `Dockerfile` | `e99e89491f4b7a918c632b5737e275fb8aa1944dd51d3c4d618d205d5d3e791b` |
 | `build.sh` | `853a2a90245bc599ab01277246362dcdb9c789875ef564fbdc83d5b1a753b7cd` |
-| `start.sh` | `aa3ecab6ed2dbca519cd743dac6d0bea5d07c736f36cc04ce870ed590e87391a` |
+| `download.sh` | `66cfd2f3b9f3bc0ffe917bf649d68d0a70ee8e23c61f28792798056b90b7c6f9` |
+| `start.sh` | `d33e96bc36d497f823256d0c18dba05d7ce1bec374ac6873923a1b2b2346f70b` |
 | `container/glm53-entrypoint.sh` | `c1de8b073277b8edfb5c85c7c8d83ee511593d77d271c26a7ddf4d1e1c5abc8d` |
 | `container/glm53-release-warmup.py` | `7324b284a838063f18d29c40dda5c2e329b3133493b76bb518006aec534c0b9d` |
 

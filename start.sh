@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MODEL_ID="${MODEL_ID:-wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1}"
-MODEL_REVISION="${MODEL_REVISION:-319d66a8b53092b491f698440ecea781e4ddd4e4}"
+MODEL_REVISION="${MODEL_REVISION:-1e4abd26e4e1e8d58d81fbd557d6c4099352fe63}"
 DFLASH_MODEL_ID="${DFLASH_MODEL_ID:-incoai/GLM-5.3-Flash-DFlash2}"
 DFLASH_MODEL_REVISION="${DFLASH_MODEL_REVISION:-dc77ff1c99eeb2df044ee3d4f0094eb033fee410}"
 HF_CACHE_DIR="${HF_HOME:-${HOME}/.cache/huggingface}"
