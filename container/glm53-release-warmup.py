@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import time
@@ -183,6 +184,93 @@ def main() -> None:
         f"{time.perf_counter() - started:.2f}s",
         flush=True,
     )
+
+    # Compact ReplaySSM's aligned-prefix materializer is not used by the
+    # production DFlash2 profile.  When an MTP+ReplaySSM profile is selected,
+    # replay the same cached prefix before readiness so its cursor reset and
+    # state reconstruction kernels cannot first-JIT on a user's request.
+    if os.getenv("GLM53_REPLAYSSM_ACTIVE", "0") == "1":
+        started = time.perf_counter()
+        replay = request_json(
+            args.base_url,
+            "/v1/completions",
+            {
+                "model": model,
+                "prompt": LONG_PREFILL_PROMPT,
+                "n": 1,
+                "max_tokens": 1,
+                "min_tokens": 1,
+                "ignore_eos": True,
+                "temperature": 0,
+                "seed": 20260901,
+                "cache_salt": "glm53-release-warmup-replayssm-prefix",
+            },
+            args.request_timeout,
+        )
+        replay_again = request_json(
+            args.base_url,
+            "/v1/completions",
+            {
+                "model": model,
+                "prompt": LONG_PREFILL_PROMPT,
+                "n": 1,
+                "max_tokens": 1,
+                "min_tokens": 1,
+                "ignore_eos": True,
+                "temperature": 0,
+                "seed": 20260901,
+                "cache_salt": "glm53-release-warmup-replayssm-prefix",
+            },
+            args.request_timeout,
+        )
+        if len(replay.get("choices") or []) != 1 or len(
+            replay_again.get("choices") or []
+        ) != 1:
+            raise SystemExit("startup ReplaySSM prefix warmup returned bad choices")
+        print(
+            "GLM release startup ReplaySSM prefix warmup completed in "
+            f"{time.perf_counter() - started:.2f}s",
+            flush=True,
+        )
+
+        # Stagger prompt lengths so a short request is decoding while later
+        # requests are still prefilling. ReplaySSM deliberately keeps this
+        # mixed lifecycle eager; exercising it here both checks the dispatch
+        # and resolves its real-shape kernels before the ready marker.
+        def mixed_request(item: tuple[int, int]) -> dict:
+            request_index, repetitions = item
+            time.sleep(request_index * 0.15)
+            return request_json(
+                args.base_url,
+                "/v1/completions",
+                {
+                    "model": model,
+                    "prompt": " mixed" * repetitions + PROMPT,
+                    "n": 1,
+                    "max_tokens": 128,
+                    "min_tokens": 128,
+                    "ignore_eos": True,
+                    "temperature": 0,
+                    "seed": 20260901,
+                    "cache_salt": (
+                        f"glm53-release-warmup-replayssm-mixed-{request_index}"
+                    ),
+                },
+                args.request_timeout,
+            )
+
+        started = time.perf_counter()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            mixed_results = list(
+                pool.map(mixed_request, enumerate((64, 1024, 2048, 4096)))
+            )
+        if any(len(result.get("choices") or []) != 1 for result in mixed_results):
+            raise SystemExit("startup ReplaySSM mixed warmup returned bad choices")
+        print(
+            "GLM release startup ReplaySSM mixed prefill/decode warmup completed in "
+            f"{time.perf_counter() - started:.2f}s",
+            flush=True,
+        )
 
     for pass_index in range(args.passes):
         started = time.perf_counter()

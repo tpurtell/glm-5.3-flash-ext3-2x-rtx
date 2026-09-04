@@ -21,6 +21,7 @@ This recipe consumes finished Hugging Face target and draft checkpoints and comp
 | EXL3 vLLM fork commit | `30038602b71395f481ef4a6edfe4fcf8551d9c15` |
 | B12x fork | `tpurtell/sparkinfer-glmrt@c90cd0080274b90da4721f8ab7536bca29cae720` |
 | ReplaySSM base | vLLM PRs `#48792`, `#49847`, and `#49887`, ported onto the pinned vLLM commit |
+| ReplaySSM mixed-graph repair | This repository's `c51c3856f7f8ba50af3b3a60ff48e7d6a1fa303c` |
 | Dynamic-MTP graph fix | vLLM PR `#49652`, ported onto the pinned vLLM commit |
 | Runtime stack | Torch 2.13, CUDA 13, CUTLASS DSL 4.6.2 |
 
@@ -146,6 +147,44 @@ The pre-existing local work remains available:
 - Vector-gated KDA ReplaySSM, compact state accounting, and request-lifetime adaptive MTP as an alternate speculative method.
 - The bounded EXL3 prefill arena and GLM-specific B12x sparse-MLA, K-pool, DCP2, PCIe collective, query-projection, mHC, NVFP4, and FP8 cache ports.
 
+### ReplaySSM mixed-batch repair and release gate
+
+[Samuel Cardillo's corruption investigation](https://github.com/samuelcardillo/glm-5.3-flash-2x-rtx-pro-6000-blackwell/commit/1755c0f0c01b98463a7b87ab613a6c894b569298)
+is a valuable downstream reproducer, but it used this recipe at `3bff1d5...`
+(`v0.3.0`). That source predates `c51c385...`, which prevents compact
+ReplaySSM from selecting vLLM's generic mixed prefill/decode CUDA graph. The
+generic graph supplies synthetic rows whose shape can disagree with the live
+GLM KDA prefill state; Samuel's fatal
+`ReplaySSM prefill source/state row count mismatch` occurred under the same
+rolling C4 mixed workload. Uniform decode graphs remain enabled.
+
+The current port also includes the request-lifecycle corrections from vLLM
+[#49847](https://github.com/vllm-project/vllm/pull/49847): draft-less rows stay
+on ReplaySSM, a temporarily unscheduled request retains its pending GPU
+acceptance and decode anchor, and preempted/recycled pages reset. vLLM
+[#54103](https://github.com/vllm-project/vllm/pull/54103) documents a nearby
+KDA concurrency hazard in which a strided `state_indices[:, 0]` was consumed
+as contiguous. This CUDA port already passes that stride into its verify and
+cursor kernels; the KDA prefix materializer now carries explicit strides for
+all four row tensors as well and reports every row count on invariant failure.
+
+This is still a release hypothesis until exercised on the target GPUs. The
+K3.25 release gate runs `scripts/test-replayssm-stress.py` with ReplaySSM on:
+exact 32,768-token prompts, C4, 40 thinking-off shared-prefix requests, 40
+maximum-thinking shared-prefix requests, and 40 maximum-thinking unique-prefix
+requests. It retains raw SSE, rejects repeated-subword streams, requires exact
+needle retrieval with thinking off, checks server health after every phase,
+and compares the same workload with full-state rollback. Zero loops, errors,
+or engine deaths are required before ReplaySSM is described as qualified.
+
+The newer FlashInfer work in vLLM
+[#52928](https://github.com/vllm-project/vllm/pull/52928) is Mamba2-only and
+currently requires `mamba_cache_mode=none`; the prefix-cache follow-up
+[#54609](https://github.com/vllm-project/vllm/pull/54609) is still WIP. Neither
+is a drop-in replacement for GLM-5.3's vector-gated KDA plus aligned prefix
+cache, so this release keeps the narrow KDA port rather than importing an
+unrelated backend.
+
 Build-time probes check target/draft architecture recognition, the DFlash2 V2 speculator, GLM EAGLE3 support, EXL3 registration, uniform and per-projection Trellis plans, the EP route namespace, ReplaySSM/adaptive policy imports, B12x APIs, compact cache layouts, head geometry, and exact runtime versions.
 
 Current recipe launcher/build hashes. The v0.6.1 target-metadata patch and the
@@ -218,6 +257,10 @@ timing, scoring, power, and attribution methods.
 - https://github.com/vllm-project/vllm/pull/48792
 - https://github.com/vllm-project/vllm/pull/49847
 - https://github.com/vllm-project/vllm/pull/49887
+- https://github.com/vllm-project/vllm/pull/52928
+- https://github.com/vllm-project/vllm/pull/54103
+- https://github.com/vllm-project/vllm/pull/54609
+- https://github.com/samuelcardillo/glm-5.3-flash-2x-rtx-pro-6000-blackwell/commit/1755c0f0c01b98463a7b87ab613a6c894b569298
 - https://github.com/vllm-project/vllm/pull/49652
 - https://github.com/tpurtell/sparkinfer-glmrt
 - https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2

@@ -228,6 +228,32 @@ sparse_indexer_source = Path(
 assert "b12x.attention.nsa_indexer" not in sparse_indexer_source
 assert sparse_indexer_source.count("b12x.attention.dsa_indexer") == 13
 
+# ReplaySSM's request-index metadata must remain safe for both rolling mixed
+# batches and non-contiguous block-table columns.  The former matches the
+# intermittent C4 failure reproduced by Samuel Cardillo's derivative; the
+# latter is an adjacent KDA failure mode documented by upstream vLLM work.
+cudagraph_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/"
+    "cudagraph_utils.py"
+).read_text()
+assert (
+    "mixed_mode\n                and not "
+    "self.vllm_config.cache_config.use_replayssm_spec"
+) in cudagraph_source
+kda_replayssm_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/third_party/"
+    "flash_linear_attention/ops/kda_replayssm_spec_decode.py"
+).read_text()
+for stride_contract in (
+    "state_indices.stride(0)",
+    "source_indices.stride(0)",
+    "has_initial_state.stride(0)",
+    "row_write_pos.stride(0)",
+    "row_cache_base.stride(0)",
+):
+    assert stride_contract in kda_replayssm_source
+assert "ReplaySSM prefill row count mismatch" in kda_replayssm_source
+
 def entry(name: str, bits: int):
     return {
         "bits_per_weight": bits,
@@ -484,14 +510,15 @@ print("GLM-5.3 vLLM + EXL3 + B12x compatibility probe passed")
 PY
 
 LABEL org.opencontainers.image.source="https://github.com/tpurtell/glm-5.3-flash-ext3-4-bit-2x-rtx" \
-      org.opencontainers.image.description="GLM-5.3 Flash EXL3 K3 on 2x SM120: DFlash2, multimodal GLM, FP8 MLA, DCP2, and B12x PCIe kernels" \
+      org.opencontainers.image.description="GLM-5.3 Flash EXL3 K3/K4/K3.25 on 2x SM120: DFlash2, multimodal GLM, FP8 MLA, DCP2, and B12x PCIe kernels" \
       org.opencontainers.image.licenses="Apache-2.0" \
       io.tpurtell.b12x.source="https://github.com/tpurtell/sparkinfer-glmrt" \
       io.tpurtell.glm-base.digest="sha256:0bd709e80b8ff13ae5de8f7d7f708a499fade3a26970d56afb1be2ff3860fde5" \
       io.tpurtell.exl3-source.digest="sha256:86c8c1054f9c24454949e37031ce6165c007963aa0c0ef30fa884f6d4170af32" \
       io.tpurtell.exl3-vllm.commit="30038602b71395f481ef4a6edfe4fcf8551d9c15" \
       io.tpurtell.dflash2-vllm.commit="b389ac29465b33f9e9c534df221ea3c129e9793f" \
-      io.tpurtell.b12x.commit="611ffe8712e40e9ed0110e3cfb1d0b7f4580e631"
+      io.tpurtell.b12x.commit="${B12X_COMMIT}" \
+      io.tpurtell.replayssm.mixed-graph-fix="c51c3856f7f8ba50af3b3a60ff48e7d6a1fa303c"
 
 COPY container/glm53-entrypoint.sh /usr/local/bin/glm53-entrypoint
 COPY container/glm53-release-warmup.py /usr/local/bin/glm53-release-warmup.py

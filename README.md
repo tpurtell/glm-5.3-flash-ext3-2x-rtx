@@ -116,7 +116,7 @@ This is a pinned runtime composition, not a lucky pile of launcher flags:
 - Graph-stable MCG Trellis full-rotation scratch and route arenas, with numerical rank-partial parity and changed/empty-route CUDA graph replay gates.
 - B12x sparse MLA, paged K-pool score/top-k, DCP2 global owner exchange, graph-admitted PCIe DCP A2A, PCIe one-shot TP all-reduce, GLM H64 query projection, and batch-1 mHC fusion.
 - A release-ready entrypoint that prewarms GLM mHC, route, DFlash, sampler, long-prefill, and C16 specializations before exposing a healthy container.
-- Existing compact ReplaySSM and request-local adaptive MTP remain available as an alternate speculative method.
+- Compact ReplaySSM and request-local adaptive MTP remain available as an alternate speculative method. The K3.25 release gate includes a 120-request 32K/C4 rolling-batch corruption stress derived from Samuel Cardillo's downstream report; DFlash2 remains the production default.
 - Correctness/performance admission gates keep eager or unprofitable shapes on vLLM/NCCL fallbacks.
 
 The build probes the DFlash2 architecture and V2 speculator, GLM EAGLE3 support, EXL3 loader, independent draft cache, ReplaySSM/adaptive-MTP invariants, B12x APIs, and pinned versions. [PROVENANCE.md](PROVENANCE.md) records the immutable source chain and upstream references.
@@ -124,5 +124,7 @@ The build probes the DFlash2 architecture and V2 speculator, GLM EAGLE3 support,
 ## Thank you
 
 Huge thanks to **Brandon** for the quant work and the public EP2/runtime optimization lead behind this release's controlled comparison. No private route-128 implementation, binary, or behavior was copied. Thanks to **Inco AI / Z-Lab** for DFlash2, **Z.ai** for GLM-5.3 Flash, **MiaAI-Lab** for the nearby dual-DGX-Spark SM121 references, **cstechdev** for the GLM day-zero image, the **vLLM** and **B12x/SparkInfer** contributors, and the ExLlamaV3 authors whose trellis work underpins EXL3. Special thanks as well to Jared and the other GLM upstream contributors credited by Z.ai's vLLM work.
+
+Thanks to **Samuel Cardillo** for publishing the downstream 32K/C4 ReplaySSM corruption reproducer that became this release's rolling-batch regression gate.
 
 Recipe code is Apache-2.0. Model licenses still apply. In particular, the DFlash2 checkpoint is published under **CC BY-NC-ND 4.0 for research and evaluation**; contact Inco AI for commercial licensing.

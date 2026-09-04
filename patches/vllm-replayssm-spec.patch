@@ -3623,7 +3623,7 @@ new file mode 100644
 index 0000000000..e9b112434b
 --- /dev/null
 +++ b/vllm/third_party/flash_linear_attention/ops/kda_replayssm_spec_decode.py
-@@ -0,0 +1,516 @@
+@@ -0,0 +1,539 @@
 +# SPDX-License-Identifier: Apache-2.0
 +# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 +"""Compact speculative decode for the vector-gated KDA recurrence.
@@ -3659,6 +3659,10 @@ index 0000000000..e9b112434b
 +    has_initial_state,
 +    row_write_pos,
 +    row_cache_base,
++    stride_source_indices: tl.constexpr,
++    stride_has_initial_state: tl.constexpr,
++    stride_row_write_pos: tl.constexpr,
++    stride_row_cache_base: tl.constexpr,
 +    stride_state_slot: tl.constexpr,
 +    stride_d_slot: tl.constexpr,
 +    stride_k_slot: tl.constexpr,
@@ -3675,8 +3679,12 @@ index 0000000000..e9b112434b
 +    i_v, i_nh = tl.program_id(0), tl.program_id(1)
 +    i_n = i_nh // H
 +    i_h = i_nh % H
-+    source_idx = tl.load(source_indices + i_n).to(tl.int64)
-+    initial = tl.load(has_initial_state + i_n).to(tl.int32) != 0
++    source_idx = tl.load(
++        source_indices + i_n * stride_source_indices
++    ).to(tl.int64)
++    initial = tl.load(
++        has_initial_state + i_n * stride_has_initial_state
++    ).to(tl.int32) != 0
 +    valid = initial & (source_idx > NULL_BLOCK_ID)
 +    o_k = tl.arange(0, BK)
 +    o_v = i_v * BV + tl.arange(0, BV)
@@ -3691,8 +3699,12 @@ index 0000000000..e9b112434b
 +        + o_k[None, :]
 +    )
 +    state = tl.load(p_checkpoint, mask=mask_h & valid, other=0.0).to(tl.float32)
-+    wp = tl.load(row_write_pos + i_n, mask=valid, other=0).to(tl.int32)
-+    base = tl.load(row_cache_base + i_n, mask=valid, other=0).to(tl.int32)
++    wp = tl.load(
++        row_write_pos + i_n * stride_row_write_pos, mask=valid, other=0
++    ).to(tl.int32)
++    base = tl.load(
++        row_cache_base + i_n * stride_row_cache_base, mask=valid, other=0
++    ).to(tl.int32)
 +    for i_c in tl.static_range(0, CACHE_BUF_LEN):
 +        active_c = valid & (i_c < wp)
 +        phys = (base + i_c) & (CACHE_BUF_LEN - 1)
@@ -4104,8 +4116,15 @@ index 0000000000..e9b112434b
 +) -> torch.Tensor:
 +    """Reconstruct exact row initial states for an align-prefix prefill."""
 +    n_rows, h, v_dim, k_dim = out.shape
-+    if source_indices.shape[0] != n_rows:
-+        raise ValueError("ReplaySSM prefill source/state row count mismatch")
++    row_counts = {
++        "source_indices": source_indices.shape[0],
++        "has_initial_state": has_initial_state.shape[0],
++        "row_write_pos": row_write_pos.shape[0],
++        "row_cache_base": row_cache_base.shape[0],
++        "out": n_rows,
++    }
++    if any(count != n_rows for count in row_counts.values()):
++        raise ValueError(f"ReplaySSM prefill row count mismatch: {row_counts}")
 +    bk = triton.next_power_of_2(k_dim)
 +    if bk != k_dim:
 +        raise ValueError(f"KDA ReplaySSM requires power-of-two K, got {k_dim}")
@@ -4124,6 +4143,10 @@ index 0000000000..e9b112434b
 +        has_initial_state,
 +        row_write_pos,
 +        row_cache_base,
++        source_indices.stride(0),
++        has_initial_state.stride(0),
++        row_write_pos.stride(0),
++        row_cache_base.stride(0),
 +        checkpoint.stride(0),
 +        d_cache.stride(0),
 +        k_cache.stride(0),
