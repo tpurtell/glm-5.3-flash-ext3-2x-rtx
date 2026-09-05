@@ -103,8 +103,16 @@ another model's commit.
 
 Current vLLM DFlash2 executes one fixed K for the active fused batch. It does not yet expose request-local, within-request K adaptation like this recipe's alternate MTP controller. DFlash acceptance is very workload-dependent: K5 won the code-agent balance, while K3 won the C16 tuning point. A real adaptive DFlash policy needs to control the block-diffusion proposal/selector inside a request; swapping profiles only between requests would miss the point.
 
-The launcher pins K3.25 revision `701cd74…`, including Z.ai's corrected
-GLM-5.3 chat template and official multimodal processor metadata. Sixteen
+The launcher pins K3.25 revision `0490d2f…`, with Z.ai's corrected
+GLM-5.3 chat template and official multimodal processor metadata. The
+2026-09-06 template-only fix replaces the older template accidentally shipped
+in `701cd74…`; weights and the v0.7.0 image are unchanged. Existing benchmark
+numbers, including tool-call scores, predate this fix and have not been rerun.
+Run `git pull` and `./download.sh` to refresh metadata while reusing cached
+weights; the next `./start.sh` uses the corrected revision. See the
+[template sync receipt](benchmarks/chat-template-sync-k325-20260906.json).
+
+In the original release vision test, sixteen
 generated numbered images returned the exact ordered list `1…16`, while image
 17 received HTTP 400. DFlash receives text-side draft inputs for multimodal
 requests while the target model performs the actual vision encoding and

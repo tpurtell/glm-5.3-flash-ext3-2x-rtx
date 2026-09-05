@@ -5,13 +5,22 @@ Measured 2026-09-05 through 2026-09-06 on two PCIe-connected NVIDIA RTX PRO
 595.71.05. Every published point was captured with an explicitly verified
 **400 W power limit per GPU**.
 
-The release target is
+The measured release target is
 [`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1@701cd74…`](https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1/tree/701cd7456c13d87bf0147ad946f828a999afb59c).
 Its target experts promote exactly 9,072 of 36,288 projections from K3 to K4:
 1,701 gate, 2,835 up, and 4,536 down—the requested **3:5:8** allocation.
 All 864 MTP projections remain straight K3. Packed weights occupy 136.16 GiB
 across 18 shards; native attention, shared-expert, router, vision, embedding,
 and normalization tensors are retained.
+
+Template correction, 2026-09-06: the launcher now pins `0490d2f…`, which
+updates K3.25 to Z.ai's corrected template without changing weights or the
+container. All K3.25 measurements below, including the 88-case refresh,
+predate that fix and used the older template in `701cd74…`. The K3 control
+already used the corrected template, so these are not template-matched
+quantization comparisons. Scores and raw receipts are retained unchanged;
+no GPU benchmarks were rerun for this metadata repair. See the
+[sync receipt](chat-template-sync-k325-20260906.json).
 
 The runtime pairs that target with
 [`incoai/GLM-5.3-Flash-DFlash2@bf582e4…`](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2/tree/bf582e4eacc1810f76656d1811693ff6c6737d2a),
@@ -137,8 +146,9 @@ parameter) and TC-51 (invalid, duplicate, or unintended lunch notification).
 On Hard Mode, K3.25 passed 18/19 and received partial credit on TC-85;
 K3 passed 16/19 and failed TC-80/85/88. Both passed the new concurrency and
 pagination cases TC-86/87; K3.25 also passed TC-88's reasoning continuity
-test, where K3's first two replies contained tool calls instead of the
-required 20-digit answers.
+test, where K3's first two turns exhausted the 4,096-token output cap in
+reasoning and returned empty answers. No tools were called in that case;
+the evaluator's `[tool_calls_only]` marker also labels empty content.
 
 Full evidence: [per-case comparison](v0.7.0-k325/tool-eval-20260906/comparison.json),
 [K3 prompts and outputs](v0.7.0-k325/tool-eval-20260906/k3-runs/2026/09/2026-09-05T22-30-44.312928Z_ee526f0c.md),

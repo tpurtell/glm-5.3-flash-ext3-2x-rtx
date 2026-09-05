@@ -28,7 +28,7 @@ resolve_glm53_model_profile() {
   case "${MODEL_PROFILE}" in
     k325)
       MODEL_ID=wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1
-      MODEL_REVISION=701cd7456c13d87bf0147ad946f828a999afb59c
+      MODEL_REVISION=0490d2f708b12145f6516555ab066aaeb401cd21
       ;;
     k3)
       MODEL_ID=wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1

@@ -6,7 +6,8 @@ This recipe consumes finished Hugging Face target and draft checkpoints and comp
 
 | Component | Immutable source |
 |---|---|
-| Served target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1@701cd7456c13d87bf0147ad946f828a999afb59c` |
+| Served target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1@0490d2f708b12145f6516555ab066aaeb401cd21` |
+| Original v0.7.0 benchmark target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1@701cd7456c13d87bf0147ad946f828a999afb59c` |
 | Supported uniform-K3 target | `wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1@1e4abd26e4e1e8d58d81fbd557d6c4099352fe63` |
 | Supported uniform-K4 target | `brandonmusic/GLM-5.3-Flash-tr3-4bpw@aba59d2175e1ee2887ae0ae1300ba848b1deed84` |
 | Target source | `zai-org/GLM-5.3-Flash-BF16@f12e0fe1f6b2ea274c11a569582edfd99d993c5e` |
@@ -49,19 +50,19 @@ The DFlash2 checkpoint is a 1B-parameter BF16 draft model and is not a standalon
 
 ## Target identity and metadata repair
 
-K3.25 revision `701cd74…` is public and ungated. It contains 18 EXL3 shards,
+K3.25 revision `0490d2f…` is public and ungated. It contains 18 EXL3 shards,
 the external 32.8 MB tensor manifest, the official multimodal processor,
 tokenizer/generation metadata, and Z.ai's corrected chat template. Its compact
 `config.json` does not duplicate the tensor manifest. The normal Hugging Face
 cache was installed from the materialized local files, then verified at the
 public revision without redownloading the quant.
 
-Release metadata hashes:
+Current target metadata hashes:
 
 | File | SHA-256 |
 |---|---|
 | `config.json` | `6b477cfc1fbf8cdf3795c6389bc9712503e3f7c3889145036488ffab2b1a7781` |
-| `chat_template.jinja` | `34d5ee66b12fa6446cdae131c352b8f68cd85369e0e6fda115583805fada3891` |
+| `chat_template.jinja` | `0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5` |
 | `processor_config.json` | `aae38374c94b08cc9b0547c6e64f05b951bd9735cea571c6988f5ed552bed3ed` |
 | `tokenizer_config.json` | `926e1d0692d9f46940311494bd6de97f208e195c9150883c163f16b30c868ff4` |
 | `generation_config.json` | `a07de3408f578c6a7ca8a1646aa91a41df55d539349fda15fb8b611eb007e9b7` |
@@ -70,10 +71,27 @@ The compact `config.json` deliberately does not embed the duplicate 32.8 MB EXL3
 
 The compact K3.25 config is 13,180 bytes, parses as ordinary JSON and through
 the release vLLM configuration path as `Glm5NextConfig` /
-`Glm5NextForConditionalGeneration`. The corrected template compiled and
-rendered through the release container's `AutoProcessor`, covering ordinary
-chat, null assistant content, out-of-order tool results, and invalid-ID
-fallback. The complete local snapshot passed `hf cache verify`.
+`Glm5NextForConditionalGeneration`.
+
+Correction, 2026-09-06: the original K3.25 revision `701cd74…` actually shipped
+template SHA-256 `34d5ee66…`, not the corrected upstream template previously
+claimed here. Revision `0490d2f…` replaces only `chat_template.jinja` relative
+to the then-current Hub head `59484d5…`, preserving every other remote file.
+It is byte-identical to Z.ai `a5b45eb…`, including null-content handling,
+tool-name coercion, and early exits in tool-result reordering checks.
+The local cache uses a new immutable snapshot and reuses all 18 existing
+weight blobs; old snapshots remain unchanged for benchmark reproduction.
+All 35 files in the new snapshot passed `hf cache verify`, with missing and
+extra files treated as errors. Offline `main` resolves to the new snapshot.
+
+The corrected template passed 11 CPU-only identity/render assertions through
+the release container's `AutoProcessor` API (which resolves to
+`TokenizersBackend` here): default thinking/effort, null content, tool ordering
+and invalid-ID fallbacks, reasoning continuity, and 16 image placeholders.
+This is a template check, not a new vision-inference or tool-eval run.
+[The sync receipt](benchmarks/chat-template-sync-k325-20260906.json) records
+the exact identities and checks. The published benchmark receipts remain
+historical results for their original target revisions.
 
 The GPTQModel commits are listed only to establish how the public targets were
 written and packaged. The earlier K3 work ran at `0565af7…`; the K3.25 one-shot

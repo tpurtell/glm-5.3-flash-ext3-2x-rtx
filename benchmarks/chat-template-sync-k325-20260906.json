@@ -1,0 +1,48 @@
+{
+  "schema": "glm53-k325-chat-template-sync.v1",
+  "checked_at": "2026-09-05T22:52:44.726930+00:00",
+  "upstream_repository": "zai-org/GLM-5.3-Flash-BF16",
+  "upstream_revision": "a5b45eb41df6402735dedc900be14a42e8d5e538",
+  "repository": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1",
+  "previous_hub_revision": "59484d591f6fe109608c2bfe8fd3b35273133a9f",
+  "previous_recipe_revision": "701cd7456c13d87bf0147ad946f828a999afb59c",
+  "revision": "0490d2f708b12145f6516555ab066aaeb401cd21",
+  "chat_template_sha256": "0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5",
+  "previous_chat_template_sha256": "34d5ee66b12fa6446cdae131c352b8f68cd85369e0e6fda115583805fada3891",
+  "changed_hub_files": ["chat_template.jinja"],
+  "changes_since_original_recipe": ["README.md", "chat_template.jinja"],
+  "weight_shards_reused": 18,
+  "weight_bytes_unchanged": 146198940952,
+  "weight_downloads": 0,
+  "local_cache": {
+    "refs_main": "0490d2f708b12145f6516555ab066aaeb401cd21",
+    "offline_main_resolution_passed": true,
+    "hf_cache_verify_files": 35,
+    "hf_cache_verify_fail_on_missing_files": true,
+    "hf_cache_verify_fail_on_extra_files": true,
+    "old_snapshot_preserved": true
+  },
+  "render_gate": {
+    "image": "ghcr.io/tpurtell/glm-5.3-flash-exl3-4bpw-2x-rtx:v0.7.0",
+    "image_id": "sha256:48e254d94f58137c8707e6044cde4528c6af3fdd9702726b9b362e9b0e0b4629",
+    "api": "AutoProcessor.from_pretrained / apply_chat_template",
+    "resolved_processor": "TokenizersBackend",
+    "materialized_and_cached_template_identity_passed": true,
+    "checks": {
+      "ordinary_chat_default_thinking": true,
+      "default_reasoning_effort_max": true,
+      "null_assistant_content": true,
+      "out_of_order_tool_results": true,
+      "unknown_id_fallback": true,
+      "missing_id_fallback": true,
+      "duplicate_result_id_fallback": true,
+      "duplicate_call_id_fallback": true,
+      "list_tool_outputs_reordered": true,
+      "reasoning_preserved_across_follow_up": true,
+      "sixteen_image_placeholders": true
+    }
+  },
+  "gpu_inference_performed": false,
+  "existing_benchmark_scores_changed": false,
+  "passed": true
+}

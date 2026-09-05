@@ -22,6 +22,13 @@ The immutable container index is
 `sha256:48e254d94f58137c8707e6044cde4528c6af3fdd9702726b9b362e9b0e0b4629`.
 Target revisions and serving arguments are recorded in the environment JSONs.
 
+These runs predate the 2026-09-06 K3.25 template repair: K3.25 used the older
+template in `701cd74…`, whereas K3 already used the corrected Z.ai template.
+They therefore do not isolate quantization from template differences. The
+current launcher defaults to corrected K3.25 revision `0490d2f…`; use the
+explicit historical target below to reproduce these receipts. No scores
+were rerun or revised for the template repair.
+
 To reproduce from the recipe directory, install the evaluator at that commit
 and run the following once with `MODEL_PROFILE=k325`, then stop the server and
 repeat with `MODEL_PROFILE=k3`. Wait for Docker health to become `healthy`
@@ -29,7 +36,8 @@ before invoking the evaluator.
 
 ```bash
 IMAGE=ghcr.io/tpurtell/glm-5.3-flash-exl3-4bpw-2x-rtx:v0.7.0 \
-  MODEL_PROFILE=k325 ./start.sh
+  MODEL_ID=wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1 \
+  MODEL_REVISION=701cd7456c13d87bf0147ad946f828a999afb59c ./start.sh
 
 tool-eval-bench run --hardmode \
   --model wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1 \
@@ -89,9 +97,11 @@ TC-80: K3 did not resolve/read the event and check the exact requested time
 before deciding; K3.25 checked availability and left the original booking
 unchanged. TC-85: K3 sent a premature, duplicate, or invalid owner notification;
 K3.25 provisioned safely but skipped part of the discovery workflow. TC-88:
-K3's first two replies contained tool calls instead of the required 20-digit
-answers (its third reply was 20 digits), while K3.25 returned all three
-values across two follow-ups.
+K3's first two turns each used exactly 4,096 reasoning tokens, exhausting the
+per-turn output cap before producing an answer. Its third reply was 20 digits,
+while K3.25 returned all three values across two follow-ups. No tools were
+called in TC-88: the evaluator also prints `[tool_calls_only]` for empty
+content, which led to an incorrect earlier description of this failure.
 
 See [comparison.json](comparison.json) for all 88 paired verdicts and tool
 calls, [K3's full trace](k3-runs/2026/09/2026-09-05T22-30-44.312928Z_ee526f0c.md),
