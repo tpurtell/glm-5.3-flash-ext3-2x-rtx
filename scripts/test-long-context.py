@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 
 
-DEFAULT_MODEL = "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1"
+DEFAULT_MODEL = "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1"
 NEEDLE = "SPARK-B12X-5.3-128K-7429"
 
 

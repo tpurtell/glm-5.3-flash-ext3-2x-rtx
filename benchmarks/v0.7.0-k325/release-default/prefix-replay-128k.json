@@ -1,0 +1,36 @@
+{
+  "schema": "glm53-prefix-replay.v1",
+  "passed": true,
+  "target_prompt_tokens": 128000,
+  "cache_salt": "d4b328f6f9b945a1abe66918adff1c80",
+  "prefix_cache_hits_before": 659456.0,
+  "prefix_cache_hits_after": 774144.0,
+  "prefix_cache_hit_delta": 114688.0,
+  "passes": [
+    {
+      "pass": 1,
+      "passed": true,
+      "request_seconds": 29.009717690001708,
+      "usage": {
+        "prompt_tokens": 128000,
+        "total_tokens": 128034,
+        "completion_tokens": 34,
+        "prompt_tokens_details": null
+      },
+      "output": " SPARK-B12X-5.3-128K-7429</think>SPARK-B12X-5.3-128K-7429"
+    },
+    {
+      "pass": 2,
+      "passed": true,
+      "request_seconds": 3.3565168940112926,
+      "usage": {
+        "prompt_tokens": 128000,
+        "total_tokens": 128034,
+        "completion_tokens": 34,
+        "prompt_tokens_details": null
+      },
+      "output": " SPARK-B12X-5.3-128K-7429</think>SPARK-B12X-5.3-128K-7429"
+    }
+  ],
+  "high_recycled_page_rationale": "The identical second pass exercises the production allocator/cache replay path that previously exposed 32-bit pool-offset overflow; focused B12x tests separately force page IDs past the exact 2^31/stride boundary."
+}

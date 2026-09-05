@@ -1,0 +1,31 @@
+{
+  "schema": "glm53-release-startup-jit-audit.v1",
+  "container": "glm53-replayssm-qualification-replayssm-3085706",
+  "image": "glm53-flash-exl3-b12x-vllm:k325-runtime-dev11",
+  "image_id": "sha256:849830263825ab89bcedd70027b45d7290edfa8708053d2a74139bf8315b7568",
+  "container_state": "running",
+  "health_status_at_audit": "healthy",
+  "container_stopped_after_test": false,
+  "ready_marker": "2026-09-05T19:19:10.494739119Z GLM release startup warmup complete; container is ready.",
+  "pre_ready_jit_count": 12,
+  "pre_ready_jit_kernels": [
+    "StableTopKFromGatheredCandidatesKernel",
+    "_causal_conv1d_update_kernel",
+    "_compute_local_logits_stats_kernel",
+    "_gather_dcp_topk_scores_and_globalize_kernel",
+    "_gumbel_sample_kernel",
+    "_kda_replayssm_spec_kernel",
+    "_kpool_tail_seed_kernel",
+    "_pack_dcp_topk_candidates_triton_kernel",
+    "_prepare_dflash_inputs_kernel",
+    "_rejection_kernel",
+    "_resample_kernel",
+    "_topk_topp_kernel"
+  ],
+  "post_ready_request_count": 876,
+  "post_ready_health_200_count": 28,
+  "post_ready_http_404_count": 0,
+  "post_ready_jit_count": 0,
+  "post_ready_jit_kernels": [],
+  "passed": true
+}

@@ -1,0 +1,94 @@
+{
+  "concurrency": 4,
+  "health_before": {
+    "ok": true,
+    "seconds": 0.0,
+    "status": 200
+  },
+  "max_tokens": 512,
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1",
+  "models_response": {
+    "data": [
+      {
+        "created": 1788637014,
+        "id": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1",
+        "max_model_len": 1048576,
+        "object": "model",
+        "owned_by": "vllm",
+        "parent": null,
+        "permission": [
+          {
+            "allow_create_engine": false,
+            "allow_fine_tuning": false,
+            "allow_logprobs": true,
+            "allow_sampling": true,
+            "allow_search_indices": false,
+            "allow_view": true,
+            "created": 1788637014,
+            "group": null,
+            "id": "modelperm-9aa50840f4b00ed4",
+            "is_blocking": false,
+            "object": "model_permission",
+            "organization": "*"
+          }
+        ],
+        "root": "/model"
+      }
+    ],
+    "object": "list"
+  },
+  "passed": true,
+  "phases": [
+    {
+      "errors": 0,
+      "health_after": {
+        "ok": true,
+        "seconds": 0.001,
+        "status": 200
+      },
+      "loops": 0,
+      "marker_misses": 0,
+      "median_seconds": 11.684,
+      "passes": 40,
+      "phase": "thinking-off-shared-prefix",
+      "requests": 40
+    },
+    {
+      "errors": 0,
+      "health_after": {
+        "ok": true,
+        "seconds": 0.001,
+        "status": 200
+      },
+      "loops": 0,
+      "marker_misses": 0,
+      "median_seconds": 11.983,
+      "passes": 40,
+      "phase": "thinking-max-shared-prefix",
+      "requests": 40
+    },
+    {
+      "errors": 0,
+      "health_after": {
+        "ok": true,
+        "seconds": 0.001,
+        "status": 200
+      },
+      "loops": 0,
+      "marker_misses": 0,
+      "median_seconds": 29.447,
+      "passes": 40,
+      "phase": "thinking-max-unique-prefix",
+      "requests": 40
+    }
+  ],
+  "requests_per_phase": 40,
+  "schema": "glm53-kda-replayssm-rolling-stress-v1",
+  "seed": 739184,
+  "source_workload": "https://github.com/samuelcardillo/glm-5.3-flash-2x-rtx-pro-6000-blackwell/commit/1755c0f0c01b98463a7b87ab613a6c894b569298",
+  "target_tokens": 32768,
+  "total_errors": 0,
+  "total_loops": 0,
+  "total_passes": 120,
+  "total_requests": 120
+}

@@ -1,0 +1,56 @@
+{
+  "schema": "glm53-k3-same-image-control-verification-v1",
+  "passed": true,
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1",
+  "image_id": "sha256:849830263825ab89bcedd70027b45d7290edfa8708053d2a74139bf8315b7568",
+  "model_artifact": {
+    "host_root": "/home/tj/.cache/huggingface/hub/models--wrldsuksgo2mars--GLM-5.3-Flash-EXL3-K3-v1/snapshots/1e4abd26e4e1e8d58d81fbd557d6c4099352fe63",
+    "config_sha256": "e445e0443e7fce59943297323ff388e72c973f0e0a0f43b881be5ba55765e572",
+    "model_index_sha256": "d751549235ef63d1954be328754e001c8e488795ed4c2ef6d5b0e4a2dc08f0dc",
+    "quantization_config_name": "quantization_config.json",
+    "quantization_config_sha256": "90e3b8b419f2edd5f2c46330522fb9e4dece4d851c625cf8291786eb79bc42b0"
+  },
+  "power_limit_watts_per_gpu": 400,
+  "code_agent_decode_tps": {
+    "1": 215.3849460200455,
+    "16": 1119.4761036809905
+  },
+  "prefill_tps": {
+    "32768": 4538.295506674702,
+    "128000": 4466.974945064309
+  },
+  "receipts": {
+    "environment.json": {
+      "bytes": 7249,
+      "sha256": "1bc4a1d773327775b621774482f1791989ed779c11f573b0cad7c8e4df561902"
+    },
+    "content.jsonl": {
+      "bytes": 3122,
+      "sha256": "dd0911a11af1c353f328606fc4d8f02679249c3f479cf8257001e38f4237c8d8"
+    },
+    "code-agent-control.json": {
+      "bytes": 29387,
+      "sha256": "076790006940285633bfc317e32274c0ba57e325b2c090d7ca46b2e7538ca8d4"
+    },
+    "code-agent-control.telemetry.json": {
+      "bytes": 5616,
+      "sha256": "6d2dd016a39076317143c765d3053c706179358eec393d54a5ac8d9447eddfea"
+    },
+    "prefill-control.json": {
+      "bytes": 2049,
+      "sha256": "3f6af607afad9134186103ffb410ce92b727949114400317f02c899775a5a54a"
+    },
+    "prefill-control.telemetry.json": {
+      "bytes": 5402,
+      "sha256": "1dc821aabc692c9657daa79cfa47d8fff3c734e7d03e2a81cf5ea1a70fad5476"
+    },
+    "startup-jit-audit.json": {
+      "bytes": 1239,
+      "sha256": "0b0294025e05485ccd70886fa5cb39b0ab844e725dc67aecc292c59b8ddd4917"
+    },
+    "server.log": {
+      "bytes": 122398,
+      "sha256": "b35bc4227a33e5163c3d037d21f609138ccd930be53d07b59dd0336eee4ccf37"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "schema": "glm53-b12x-gpu-qualification-v1",
+  "status": "passed",
+  "image": {
+    "id": "sha256:849830263825ab89bcedd70027b45d7290edfa8708053d2a74139bf8315b7568",
+    "reference": [
+      "glm53-flash-exl3-b12x-vllm:k325-runtime-dev11"
+    ],
+    "b12x_commit": "fe054789069579e19ae5ec21f880b397bcf6575b",
+    "recipe_revision": "working-tree"
+  },
+  "power_limit_watts": 400.0,
+  "gpus": [
+    {
+      "index": "0",
+      "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "uuid": "GPU-fe5b6dd0-a77c-c8fb-6360-e1b9d9918ac0",
+      "pci_bus_id": "00000000:11:00.0",
+      "driver_version": "595.71.05",
+      "power_limit_watts": "400.00",
+      "pstate": "P5",
+      "sm_clock_mhz": "180",
+      "memory_clock_mhz": "810",
+      "temperature_c": "62"
+    },
+    {
+      "index": "1",
+      "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "uuid": "GPU-95f8f212-9131-df99-fd53-7535965197d7",
+      "pci_bus_id": "00000000:E1:00.0",
+      "driver_version": "595.71.05",
+      "power_limit_watts": "400.00",
+      "pstate": "P5",
+      "sm_clock_mhz": "180",
+      "memory_clock_mhz": "810",
+      "temperature_c": "75"
+    }
+  ],
+  "selected_test_nodes": [
+    "tests/moe/test_w4a16_mixed_trellis.py::test_mixed_two_tier_matches_serial_and_captures",
+    "tests/moe/test_w4a16_mixed_trellis.py::test_mixed_k3_k4_shared_h_matches_expanded_and_captures",
+    "tests/moe/test_w4a16_mixed_trellis.py::test_one_grid_large_blocks_avoid_serial_prefill_drift",
+    "tests/moe/test_w4a16_mixed_trellis.py::test_glm52_large_m_mixed_k3_k4_matches_serial",
+    "tests/moe/test_w4a16_mixed_trellis.py::test_projection_tiered_maps_cover_all_288_glm_experts_in_one_tier",
+    "tests/moe/test_fused_moe_planning.py::test_projection_mixed_plan_accepts_glm_288_expert_weights",
+    "tests/moe/test_fused_moe_planning.py::test_projection_mixed_packed_workspace_covers_capacity",
+    "tests/moe/test_ep_moe_api.py::test_glm_288_experts_map_exactly_to_144_local_slots",
+    "tests/moe/test_ep_moe_api.py::test_ep_trellis_partials_sum_to_full_moe",
+    "tests/moe/test_ep_moe_api.py::test_ep_binding_replays_with_changed_routes_under_cuda_graph",
+    "tests/attention/test_glm_next_mla.py::test_glm_next_production_prefill_2051_replays_without_allocation",
+    "tests/attention/test_glm_next_mla.py::test_glm_next_prefill_routes_exact_or_aligned_selector_width[2176]",
+    "tests/attention/test_glm_next_mla.py::test_glm_next_writer_and_reader_use_int64_for_live_high_page",
+    "tests/attention/test_fused_indexer.py::test_fused_indexer_paged_direct_k_high_page_id_i64_offsets",
+    "tests/comm/test_pcie_dcp_a2a_gpu.py::test_pcie_dcp_a2a_eager_and_cuda_graph_correctness",
+    "tests/comm/test_pcie_dcp_topk_gpu.py::test_pcie_dcp_topk_exact_owner_exchange",
+    "tests/comm/test_pcie_oneshot_fused_rmsnorm_gpu.py::test_pcie_oneshot_fused_add_rms_norm_eager_and_graph"
+  ],
+  "pytest": {
+    "cases": 47,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "artifacts": {
+    "image-inspect.json": {
+      "bytes": 14952,
+      "sha256": "7f5ead9dc20b74d99e4d5e5c09c7f3ca17c3132b24539c751de82be00717f1d8"
+    },
+    "selected-tests.txt": {
+      "bytes": 1573,
+      "sha256": "2d44ab74ef17051d5262c7ea88d93c04db7981d86d59bea4b974e4fe337549f7"
+    },
+    "gpus-before.csv": {
+      "bytes": 300,
+      "sha256": "69cebaa3298baf4d4fd4603b0457bae494f3d75e5524af0e23eb20f423dca14b"
+    },
+    "gpus-after.csv": {
+      "bytes": 305,
+      "sha256": "1add433724f84039db2662aea4011dcba0881eb346685e662c886ea4474e8b6a"
+    },
+    "pytest.xml": {
+      "bytes": 7440,
+      "sha256": "2400f7cb8bb3e9782f20fa43d60c46a9c5933ecb6c5917f48b146e9177f894a3"
+    },
+    "pytest.log": {
+      "bytes": 110,
+      "sha256": "2727b4427ce58d6b128fed854cb481ccb163bfd224aef99289c66b9e1b93273b"
+    },
+    "pytest.exit-code": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  }
+}

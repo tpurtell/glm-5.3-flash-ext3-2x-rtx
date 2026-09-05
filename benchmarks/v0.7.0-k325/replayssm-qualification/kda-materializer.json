@@ -1,0 +1,19 @@
+{
+  "schema": "glm53-kda-replayssm-materializer-v1",
+  "passed": true,
+  "device": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "torch_version": "2.13.0+cu130",
+  "shape": {
+    "slots": 8,
+    "rows": 5,
+    "heads": 2,
+    "ring_len": 16,
+    "value_dim": 8,
+    "key_dim": 16
+  },
+  "metadata_stride": 8,
+  "maximum_absolute_error": 0.0,
+  "mean_absolute_error": 0.0,
+  "contiguous_and_strided_outputs_identical": true,
+  "null_row_is_zero": true
+}

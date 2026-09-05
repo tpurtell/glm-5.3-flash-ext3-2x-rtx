@@ -1,0 +1,77 @@
+{
+  "schema": "glm53-kda-replayssm-qualification-v1",
+  "passed": true,
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1",
+  "image_id": "sha256:849830263825ab89bcedd70027b45d7290edfa8708053d2a74139bf8315b7568",
+  "model_artifact": {
+    "host_root": "/mnt/scratch/GLM-5.3-Flash-EXL3-K3.25-v1",
+    "config_sha256": "6b477cfc1fbf8cdf3795c6389bc9712503e3f7c3889145036488ffab2b1a7781",
+    "model_index_sha256": "1ddfc0b2447bbe5d5b3ce3648baa62a01b49247579581e2643674e957aa1e103",
+    "quantization_config_name": "quantization_config.json",
+    "quantization_config_sha256": "fd116534bff1c7cb7c319be03e1f4d14d9faafa0d36ef95d37eebe40ee29c429"
+  },
+  "power_limit_watts_per_gpu": 400.0,
+  "kda_materializer": {
+    "schema": "glm53-kda-replayssm-materializer-v1",
+    "passed": true,
+    "device": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "torch_version": "2.13.0+cu130",
+    "shape": {
+      "slots": 8,
+      "rows": 5,
+      "heads": 2,
+      "ring_len": 16,
+      "value_dim": 8,
+      "key_dim": 16
+    },
+    "metadata_stride": 8,
+    "maximum_absolute_error": 0.0,
+    "mean_absolute_error": 0.0,
+    "contiguous_and_strided_outputs_identical": true,
+    "null_row_is_zero": true
+  },
+  "replayssm_requests": 120,
+  "full_state_control_requests": 120,
+  "receipts": {
+    "candidate-image-id.txt": {
+      "bytes": 72,
+      "sha256": "40b0040544367e5ce0d0e94ccb6e8b773c9b4223f65a1b923e97485c32b63933"
+    },
+    "kda-materializer.json": {
+      "bytes": 462,
+      "sha256": "c02af3fe9c39175fb1d2b4afc95a314cdfba58175afebabbda9082e70811c40d"
+    },
+    "replayssm/environment.json": {
+      "bytes": 7205,
+      "sha256": "f5506b73dbb7c06e3fb88a4fbe7499c76128fefb6522670eb68539af481e403b"
+    },
+    "replayssm/stress/summary.json": {
+      "bytes": 2287,
+      "sha256": "9384dcde5b1364ad8f9622ad0b5ddf4422e2d2404a16a9cd1f444876965e3cdb"
+    },
+    "replayssm/startup-jit-audit.json": {
+      "bytes": 1164,
+      "sha256": "ebddd861475898d945b66fe7fd255646b79e378a0da04af405075e22529cec6b"
+    },
+    "replayssm/server.log": {
+      "bytes": 262742,
+      "sha256": "ff6acbd33bfd86b5b33f61d6de6cac3b16044e7d82f1fc19b4033bc7d7b3ae2a"
+    },
+    "full-state-control/environment.json": {
+      "bytes": 7146,
+      "sha256": "e979b54823524eaff6986916db8d4739b0f135e300d34f0b4bd5b61b61bdba84"
+    },
+    "full-state-control/stress/summary.json": {
+      "bytes": 2285,
+      "sha256": "23e6be5c9a9a0f7a29c85998f1b37e89b0883c4106a557a5cfa61b3851dc7384"
+    },
+    "full-state-control/startup-jit-audit.json": {
+      "bytes": 1103,
+      "sha256": "22743a0e3ffbbd964067179e33e5590aa1b7f34b65a26865b9d637ff2cb06714"
+    },
+    "full-state-control/server.log": {
+      "bytes": 259044,
+      "sha256": "07ab58e5f36166a1caf0aa5e10a10e70452a9caa78ef81fbeaa4b7e4257c5fdb"
+    }
+  }
+}

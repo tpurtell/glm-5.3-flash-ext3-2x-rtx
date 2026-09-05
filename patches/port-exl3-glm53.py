@@ -371,7 +371,7 @@ def main(root: Path) -> None:
         "        key = (\n",
         "        topk = int(topk_ids.shape[1])\n"
         "        bf16_epilogue = os.getenv(\n"
-        '            "B12X_EXL3_BF16_EPILOGUE", "1"\n'
+        '            "B12X_EXL3_BF16_EPILOGUE", "0"\n'
         '        ) not in ("", "0", "false", "False")\n'
         "        device_index = x.device.index\n"
         "        key = (\n",

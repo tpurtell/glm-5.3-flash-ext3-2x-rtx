@@ -1,0 +1,151 @@
+{
+  "schema": "glm53-k325-full-release-suite-verification-v1",
+  "passed": true,
+  "model": "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1",
+  "image_id": "sha256:849830263825ab89bcedd70027b45d7290edfa8708053d2a74139bf8315b7568",
+  "model_artifact": {
+    "host_root": "/home/tj/.cache/huggingface/hub/models--wrldsuksgo2mars--GLM-5.3-Flash-EXL3-K3.25-v1/snapshots/701cd7456c13d87bf0147ad946f828a999afb59c",
+    "config_sha256": "6b477cfc1fbf8cdf3795c6389bc9712503e3f7c3889145036488ffab2b1a7781",
+    "model_index_sha256": "1ddfc0b2447bbe5d5b3ce3648baa62a01b49247579581e2643674e957aa1e103",
+    "quantization_config_name": "quantization_config.json",
+    "quantization_config_sha256": "fd116534bff1c7cb7c319be03e1f4d14d9faafa0d36ef95d37eebe40ee29c429"
+  },
+  "power_limit_watts_per_gpu": 400,
+  "replayssm": false,
+  "kv_cache_capacity_tokens": 2758919,
+  "code_agent_decode_tps": {
+    "1": 212.99551756435696,
+    "2": 336.62274109779804,
+    "4": 480.44397417340736,
+    "8": 533.6276935576877,
+    "16": 832.1840872849041
+  },
+  "code_agent_depth_tps": {
+    "0": 209.6739555427446,
+    "8192": 204.2109961925618,
+    "32768": 203.84522537586014,
+    "65536": 212.95125666801832,
+    "128000": 190.50807800548563
+  },
+  "prefill_tps": {
+    "8192": 4562.751331058098,
+    "16384": 4533.691579972292,
+    "32768": 4593.438539723096,
+    "65536": 4590.399387921331,
+    "128000": 4571.995157888035
+  },
+  "glmrt_seven_blend_tps": 145.6984246396608,
+  "one_million_needles_passed": 6,
+  "telemetry": {
+    "code-agent-curve.telemetry.json": {
+      "duration_seconds": 142.35422902599385,
+      "power_limit_watts_per_gpu": 400
+    },
+    "code-agent-depth.telemetry.json": {
+      "duration_seconds": 107.13082195298921,
+      "power_limit_watts_per_gpu": 400
+    },
+    "prefill-curve.telemetry.json": {
+      "duration_seconds": 222.16339025599882,
+      "power_limit_watts_per_gpu": 400
+    },
+    "glmrt-seven-blend.telemetry.json": {
+      "duration_seconds": 28.15485414399882,
+      "power_limit_watts_per_gpu": 400
+    },
+    "prefix-replay-128k.telemetry.json": {
+      "duration_seconds": 32.84664486099791,
+      "power_limit_watts_per_gpu": 400
+    },
+    "multi-needle-1m.telemetry.json": {
+      "duration_seconds": 267.84771907499817,
+      "power_limit_watts_per_gpu": 400
+    },
+    "post-1m-c16.telemetry.json": {
+      "duration_seconds": 35.18404509600077,
+      "power_limit_watts_per_gpu": 400
+    }
+  },
+  "receipts": {
+    "environment-before.json": {
+      "bytes": 7262,
+      "sha256": "47eccd18ea0dc6891924da6c4dedbb1fc04930ac09349990cea6498034dfec35"
+    },
+    "environment-after.json": {
+      "bytes": 7268,
+      "sha256": "798347b31692426cd35e706913a7af610b7767352af0bbc3e8b1a63597136106"
+    },
+    "code-agent-curve.json": {
+      "bytes": 62076,
+      "sha256": "0b7ca1d2139268175bb7b30c1b3393c0eeb3f203bd6ccf05af59c903034f3393"
+    },
+    "code-agent-depth.json": {
+      "bytes": 24211,
+      "sha256": "8af2d7520aee2f4e10f9544bef0629141b1519ceb686107f2d2f6aabb1f1be12"
+    },
+    "prefill-curve.json": {
+      "bytes": 4644,
+      "sha256": "1947c465d61ff8b6dc78561ff669ff25b93ae9ca385106e0cc5d0eb2de3a4d04"
+    },
+    "glmrt-seven-blend.json": {
+      "bytes": 43860,
+      "sha256": "437131e65422447c6037df818dd1f2dbe9dce89cf312bb931f95725f5bf9bb8a"
+    },
+    "content.jsonl": {
+      "bytes": 3166,
+      "sha256": "cf9fa63964a7e23958203f9c03b4b9f161a1ce98e966dcd193d44eaa31f8a34e"
+    },
+    "vision.json": {
+      "bytes": 2479,
+      "sha256": "7886ea41f0faa49eeb782c77a1e4234be67f69d6ab88b022195d586b034fa573"
+    },
+    "prefix-replay-128k.json": {
+      "bytes": 1201,
+      "sha256": "b3fe556e7264e0f8b1566e19d00ab8c4ee99453098c90fd42e9491b7ec344f35"
+    },
+    "multi-needle-1m.json": {
+      "bytes": 2235,
+      "sha256": "abbaf312644c5b69ee08ffdc661660e1c85858be2706f029a55c13c6e5c400c4"
+    },
+    "post-1m-c16.json": {
+      "bytes": 21545,
+      "sha256": "a7b5ed0b51e24403375494f4c5375b7c30e6d5d3b0cc1511d8720e5ef2db5ae6"
+    },
+    "startup-jit-audit.json": {
+      "bytes": 1073,
+      "sha256": "6ff3c362108b46fb00a5d0275550406d0cb1ddb226f481de1a5457d02bf0a978"
+    },
+    "code-agent-curve.telemetry.json": {
+      "bytes": 5626,
+      "sha256": "24967c63214eeae788aec7cf9409de3692d142bc263c3478c2c2ee62c0c037eb"
+    },
+    "code-agent-depth.telemetry.json": {
+      "bytes": 5563,
+      "sha256": "f3ca14ef9bd5df1a1856bed4988900dafed7685a89054523e2bce5f848924442"
+    },
+    "prefill-curve.telemetry.json": {
+      "bytes": 5450,
+      "sha256": "3e48ce847a6fc3d0984a07714fe477f0d34ab1c5bd6cece39b2116b55da7b538"
+    },
+    "glmrt-seven-blend.telemetry.json": {
+      "bytes": 5383,
+      "sha256": "4360e70f2582f7bd345fce7d094159f8683a31cfe0bdb48f347e77588e8aa7a9"
+    },
+    "prefix-replay-128k.telemetry.json": {
+      "bytes": 5312,
+      "sha256": "a29efcc1d753d052f47c21aa4ddc28096c0f3696543dba85f776c32c7e0d1c09"
+    },
+    "multi-needle-1m.telemetry.json": {
+      "bytes": 5433,
+      "sha256": "2e31cdbc384af1fc9770a99689879509c7136d5c32f8e62f58f040e022d47dd9"
+    },
+    "post-1m-c16.telemetry.json": {
+      "bytes": 5583,
+      "sha256": "374ef811fabd7b1bba55017dd4b12c14eb80697ee95d54a499bcb552b0b00c07"
+    },
+    "server.log": {
+      "bytes": 249356,
+      "sha256": "50cb9848fa87e722afba83cdebfd7ae4b493028969fdd6dad330e4f481fea5c1"
+    }
+  }
+}

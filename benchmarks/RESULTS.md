@@ -1,3 +1,174 @@
+# v0.7.0 projection-mixed K3.25 + DFlash2 FP8 qualification
+
+Measured 2026-09-05 through 2026-09-06 on two PCIe-connected NVIDIA RTX PRO
+6000 Blackwell Workstation Edition GPUs (SM120, 97,887 MiB each), driver
+595.71.05. Every published point was captured with an explicitly verified
+**400 W power limit per GPU**.
+
+The release target is
+[`wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1@701cd74…`](https://huggingface.co/wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1/tree/701cd7456c13d87bf0147ad946f828a999afb59c).
+Its target experts promote exactly 9,072 of 36,288 projections from K3 to K4:
+1,701 gate, 2,835 up, and 4,536 down—the requested **3:5:8** allocation.
+All 864 MTP projections remain straight K3. Packed weights occupy 136.16 GiB
+across 18 shards; native attention, shared-expert, router, vision, embedding,
+and normalization tensors are retained.
+
+The runtime pairs that target with
+[`incoai/GLM-5.3-Flash-DFlash2@bf582e4…`](https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2/tree/bf582e4eacc1810f76656d1811693ff6c6737d2a),
+B12x `fe054789…`, TP2+EP2, target DCP2 AG/RS, FP8 target MLA, replicated BF16
+draft cache, DFlash2 K5, 16 scheduler slots, 2,048 batched tokens, 1,048,576
+maximum length, baseline full-state rollback, and memory utilization 0.950.
+
+## Headline code-agent decode
+
+The workload asks for a complete typed replacement of a buggy async Python
+task runner. Each sequence emits 256 tokens at temperature 0.2 with a fixed
+seed. Every point has two warmups and five measured runs. Pure decode times
+each request from its first streamed token through its last; TTFT/prefill is
+excluded, and concurrent throughput is the sum of per-request rates.
+
+| Concurrency | Median pure decode tok/s | Five-run range | Per request | Draft acceptance | Committed / target pass |
+|---:|---:|---:|---:|---:|---:|
+| C1 | **213.0** | 206.3–229.2 | 213.0 | 67.93% | 4.40 |
+| C2 | 336.6 | 316.2–379.7 | 168.3 | 69.22% | 4.46 |
+| C4 | 480.4 | 462.4–524.0 | 120.1 | 67.26% | 4.36 |
+| C8 | 533.6 | 519.4–541.1 | 66.7 | 66.89% | 4.34 |
+| C16 | **832.2** | 828.9–894.5 | **52.0** | 68.46% | 4.42 |
+
+K3.25 C1 is 4.3% below the prior v0.6 K3 headline of 222.6 tok/s and remains
+inside the release's 5% C1 budget. The raw report retains the conservative
+whole-batch window separately; it is not mislabeled as pure decode.
+
+## Same-image uniform-K3 control
+
+The final runtime then loaded the published uniform-K3 model with the exact
+same DFlash/cache/topology/rollback flags. It passed 7/7 content contracts and
+recorded no post-ready JIT.
+
+| Measurement | Uniform K3 | K3.25 | K3.25 delta |
+|---|---:|---:|---:|
+| Code-agent C1 | 215.4 | 213.0 | **−1.1%** |
+| Code-agent C16 aggregate | 1,119.5 | 832.2 | −25.7% |
+| 32K prefill | 4,538.3 | 4,593.4 | **+1.2%** |
+| 128K prefill | 4,467.0 | 4,572.0 | **+2.4%** |
+
+The fixed-tier path therefore did not regress, and projection mixing is
+effectively free at the C1 agent target while improving prefill slightly. The
+saturated C16 loss is real. A matched torch profile attributes it to the
+projection-mixed Trellis kernel: rank 0 spent 3,267.9 ms across 2,814 launches
+versus 2,009.0 ms across 2,940 for K3; the dominant mixed shape used 241
+registers and 69.6 KiB shared memory versus 141 registers and 35.8 KiB.
+Attention and PCIe collective time remained comparable. v0.7 ships the honest
+result instead of hiding that remaining mixed-kernel optimization opportunity.
+
+## Decode after existing context
+
+These are C1 code-agent requests after unique existing context. Timing still
+excludes prefill and TTFT.
+
+| Existing depth | Median tok/s | Three-run range | Median acceptance |
+|---:|---:|---:|---:|
+| 0 | 209.7 | 190.2–221.1 | 67.93% |
+| 8K | 204.2 | 197.0–214.8 | 67.93% |
+| 32K | 203.8 | 194.2–208.0 | 68.62% |
+| 64K | 213.0 | 192.1–213.0 | 71.07% |
+| 128K | 190.5 | 181.9–218.6 | 61.59% |
+
+## Cold FP8 prefill
+
+Each point is a uniquely salted exact-length C1 prompt. Timing includes server
+tokenization through the first generated token. Each length was warmed and
+then measured three times.
+
+| Prompt tokens | Median prompt tok/s | Median TTFT |
+|---:|---:|---:|
+| 8,192 | 4,562.8 | 1.795 s |
+| 16,384 | 4,533.7 | 3.614 s |
+| 32,768 | 4,593.4 | 7.134 s |
+| 65,536 | 4,590.4 | 14.277 s |
+| 128,000 | **4,572.0** | **27.997 s** |
+
+## Standard seven-workload GLMRT blend
+
+Code, math/reasoning, creative prose, greeting, exposition, structured JSON,
+and Traditional Chinese each ran three times at C1. Aggregate throughput is
+total decode tokens divided by total pure-decode time.
+
+| Workload | Median tok/s | Median acceptance | Contract |
+|---|---:|---:|---:|
+| Code | 228.8 | 74.00% | pass |
+| Math | 241.4 | 80.00% | pass |
+| Fable | 106.7 | 23.15% | pass |
+| Hello | 168.9 | 53.33% | pass |
+| Topic | 144.1 | 38.42% | pass |
+| Structured JSON | 187.0 | 57.65% | pass |
+| Multilingual | 117.0 | 27.06% | pass |
+| **Weighted aggregate** | **145.7** | **39.19%** | **pass 21/21** |
+
+The exact JSON object is accepted whether bare or wrapped in a `json` fence;
+that is presentation, not malformed structured content.
+
+## Full 69-case tool comparison
+
+Both targets ran in the final image with thinking enabled, temperature 0, and
+parallelism 8. The benchmark saw no API/runtime errors. K3 scored 88 with
+57 pass / 7 partial / 5 fail; K3.25 scored 86 with 55 pass / 8 partial / 6
+fail. K3.25 improved TC-33, regressed TC-40/68/69, and matched the other 65
+cases. Category deltas were +2 points in Safety & Boundaries, −2 in Toolset
+Scale, and −3 in Structured Output; all other categories matched. The
+[complete per-case comparison](v0.7.0-k325/tool-eval/comparison.json) and both
+raw runs are published, not just the aggregate score.
+
+## ReplaySSM: fixed and qualified, optional by evidence
+
+The launcher previously forwarded `--use-replayssm` only for native MTP, so
+selecting it with DFlash2 did nothing. v0.7 wires compact KDA rollback into
+DFlash2 and adds the GLM convolution-window and strided materialization fixes.
+
+| DFlash2 K5 measurement | Baseline rollback | ReplaySSM | Delta |
+|---|---:|---:|---:|
+| Code-agent C1 | 213.0 | 206.9 | −2.8% |
+| Code-agent C16 | 832.2 | 856.4 | +2.9% |
+| FP8 schedulable tokens | 2,758,919 | 2,940,699 | **+6.6%** |
+| 128K prefill | 4,572.0 | 4,441.5 | −2.9% |
+| 1M six-needle | 6/6 | 6/6 | equal |
+
+The CUDA materializer matched its Torch reference exactly with deliberately
+strided request rows. ReplaySSM and full-state rollback then each passed 120
+of 120 rolling C4 requests: thinking off/max, shared/unique 32K prefixes, zero
+loops, zero request errors, zero engine deaths, and zero post-ready JIT.
+ReplaySSM's broader optional suite passed vision16, 128K prefix replay, and the
+1M needle; its semantic blend was 6/7 because one fable had 172 words against
+a requested 140–170. It is therefore a transparent capacity/C16 option via
+`USE_REPLAYSSM=1`, while baseline rollback remains the C1-oriented default.
+
+## Correctness and long context
+
+- **B12x GPU gate:** 47/47 focused tests pass on both cards. Coverage includes
+  mixed K3/K4 parity and graph replay, 288→144 EP maps, changed/empty routes,
+  2,051-row allocation-free prefill, 64-bit high-page access, DCP A2A/top-k,
+  and fused PCIe all-reduce.
+- **Content:** the release default passes all seven deterministic content
+  contracts; the seven-type measured blend passes 21/21.
+- **Vision:** exact ordered identification passes for 1, 4, and 16 images;
+  image 17 receives HTTP 400.
+- **Prefix replay:** the exact 128K needle passes twice. The second request
+  records 114,688 cache-hit tokens and falls from 29.010 s to 3.357 s.
+- **One million tokens:** a cold 1,000,000-token request retrieves six of six
+  needles at 5%, 25%, 50%, 75%, 95%, and 99%. TTFT is 261.299 s and total
+  request time is 263.905 s.
+- **Lifecycle:** the default suite, post-1M C16 soak, K3 control, and ReplaySSM
+  A/B all record zero kernel compilation after Docker's ready marker.
+
+Machine-readable evidence is under [`v0.7.0-k325/`](v0.7.0-k325/):
+`release-default/` holds the complete headline suite, `k3-control/` the
+same-image comparison, `tool-eval/` all 69 cases, `b12x-gpu/` the kernel gate,
+and `replayssm-qualification/` plus `replayssm-option/` the matched rollback
+evidence. Historical NVFP4, MTP, adaptive-MTP, and K3 DFlash measurements were
+not rerun or relabeled.
+
+---
+
 # v0.6.0 B12x EP2 + DFlash2 FP8 qualification
 
 Measured 2026-08-31 through 2026-09-01 on two PCIe-connected NVIDIA RTX PRO

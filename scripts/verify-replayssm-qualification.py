@@ -82,12 +82,10 @@ def validate_environment(
         "--decode-context-parallel-size": "2",
         "--dcp-comm-backend": "ag_rs",
         "--attention-backend": "B12X_MLA_SPARSE",
-        # Full-state native MTP carries one recurrent state per verify token;
-        # use a matched 262K diagnostic profile so both variants can allocate.
-        "--max-model-len": "262144",
+        "--max-model-len": "1048576",
         "--max-num-batched-tokens": "2048",
         "--max-num-seqs": "16",
-        "--max-cudagraph-capture-size": "64",
+        "--max-cudagraph-capture-size": "96",
         "--gpu-memory-utilization": "0.950",
         "--kv-cache-dtype": "fp8_ds_mla",
         "--mamba-cache-mode": "align",
@@ -97,20 +95,22 @@ def validate_environment(
         if actual != expected:
             raise ValueError(f"{flag} differs: {actual!r} != {expected!r}")
     speculative = json.loads(argument(command, "--speculative-config"))
-    if speculative.get("method") != "mtp" or speculative.get(
+    if speculative.get("method") != "dflash" or speculative.get(
         "num_speculative_tokens"
     ) != 5:
-        raise ValueError("qualification did not use native MTP K5")
-    schedule = speculative.get("num_speculative_tokens_per_batch_size")
-    if not isinstance(schedule, list) or not schedule:
-        raise ValueError("qualification did not use the adaptive-MTP schedule")
+        raise ValueError("qualification did not use DFlash2 K5")
+    if speculative.get("kv_cache_dtype") != "bfloat16":
+        raise ValueError("qualification did not use the replicated BF16 draft cache")
+    draft_model = speculative.get("model")
+    if not isinstance(draft_model, str) or "snapshots/" not in draft_model:
+        raise ValueError("qualification did not use a pinned DFlash2 snapshot")
     if ("--use-replayssm" in command) != use_replayssm:
         raise ValueError("ReplaySSM command state differs from receipt variant")
     if use_replayssm and argument(command, "--replayssm-buffer-len") != "10":
         raise ValueError("ReplaySSM qualification did not use buffer length 10")
     environment = container.get("environment") or {}
     expected_environment = {
-        "VLLM_ADAPTIVE_MTP": "1",
+        "VLLM_ADAPTIVE_MTP": "0",
         "GLM53_REPLAYSSM_ACTIVE": "1" if use_replayssm else "0",
         "VLLM_B12X_DCP_A2A": "1",
         "VLLM_USE_B12X_SPARSE_INDEXER": "1",

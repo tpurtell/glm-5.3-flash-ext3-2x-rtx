@@ -26,7 +26,11 @@ CASES = {
         "Write a Python function merge_intervals(intervals) that merges overlapping "
         "integer intervals. Include type hints, a short docstring, and three assert-based "
         "examples. Return only one Python code block.",
-        320,
+        # Leave enough room for the requested typed implementation, docstring,
+        # and three examples.  A 320-token cap intermittently truncated a
+        # correct answer before its closing fence and produced a false quality
+        # failure.
+        512,
     ),
     "math": PromptCase(
         "reasoning",
@@ -186,7 +190,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8001")
     parser.add_argument(
-        "--model", default="wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1"
+        "--model", default="wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1"
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=900)

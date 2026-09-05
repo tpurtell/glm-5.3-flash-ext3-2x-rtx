@@ -45,7 +45,16 @@ MTP_TOKENS="${MTP_TOKENS:-5}"
 ADAPTIVE_MTP="${ADAPTIVE_MTP:-1}"
 ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH:-1}"
 MTP_BATCH_SCHEDULE="${MTP_BATCH_SCHEDULE:-}"
-USE_REPLAYSSM="${USE_REPLAYSSM:-1}"
+if [[ -v USE_REPLAYSSM ]]; then
+  USE_REPLAYSSM="${USE_REPLAYSSM}"
+elif [[ "${SPECULATIVE_METHOD}" == mtp ]]; then
+  # Compact rollback remains the memory-saving default for the alternate MTP
+  # profile. DFlash2 favors baseline rollback at agent-workload C1; its
+  # qualified ReplaySSM path remains available with USE_REPLAYSSM=1.
+  USE_REPLAYSSM=1
+else
+  USE_REPLAYSSM=0
+fi
 REPLAYSSM_BUFFER_LEN="${REPLAYSSM_BUFFER_LEN:-10}"
 LANGUAGE_MODEL_ONLY="${LANGUAGE_MODEL_ONLY:-0}"
 LIMIT_MM_PER_PROMPT="${LIMIT_MM_PER_PROMPT:-{\"image\":16}}"
@@ -318,6 +327,12 @@ print(json.dumps({
 }, separators=(",", ":")))
 ' "/draft-repo/snapshots/${DFLASH_MODEL_REVISION}" "${DFLASH_TOKENS}" "${DFLASH_KV_CACHE_DTYPE}")"
   SPECULATIVE_ARGS+=(--speculative-config "${SPECULATIVE_CONFIG}")
+  if [[ "${USE_REPLAYSSM}" == 1 ]]; then
+    SPECULATIVE_ARGS+=(
+      --use-replayssm
+      --replayssm-buffer-len "${REPLAYSSM_BUFFER_LEN}"
+    )
+  fi
   ;;
 mtp)
   SPECULATIVE_CONFIG="{\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_TOKENS}}"
@@ -351,9 +366,9 @@ RUNTIME_ADAPTIVE_MTP=0
 REPLAYSSM_ACTIVE=0
 if [[ "${SPECULATIVE_METHOD}" == mtp ]]; then
   RUNTIME_ADAPTIVE_MTP="${ADAPTIVE_MTP}"
-  if [[ "${USE_REPLAYSSM}" == 1 ]]; then
-    REPLAYSSM_ACTIVE=1
-  fi
+fi
+if [[ "${SPECULATIVE_METHOD}" != none && "${USE_REPLAYSSM}" == 1 ]]; then
+  REPLAYSSM_ACTIVE=1
 fi
 
 DRAFT_MOUNT_ARGS=()
@@ -441,7 +456,7 @@ docker run --detach \
   --env VLLM_EXL3_PREFILL_TRELLIS="${VLLM_EXL3_PREFILL_TRELLIS:-1}" \
   --env VLLM_EXL3_PREFILL_BLOCK_M="${VLLM_EXL3_PREFILL_BLOCK_M:-64}" \
   --env VLLM_EXL3_PREFILL_CAPACITY="${VLLM_EXL3_PREFILL_CAPACITY:-1024}" \
-  --env B12X_EXL3_BF16_EPILOGUE="${B12X_EXL3_BF16_EPILOGUE:-1}" \
+  --env B12X_EXL3_BF16_EPILOGUE="${B12X_EXL3_BF16_EPILOGUE:-0}" \
   --env B12X_EXL3_BF16_GEMV="${B12X_EXL3_BF16_GEMV:-1}" \
   --env VLLM_B12X_GLM_H64_QUERY_PROJ="${VLLM_B12X_GLM_H64_QUERY_PROJ:-auto}" \
   --env VLLM_USE_B12X_MHC="${VLLM_USE_B12X_MHC:-auto}" \
@@ -488,6 +503,12 @@ if [[ "${SPECULATIVE_METHOD}" == dflash2 ]]; then
   printf 'Speculation: DFlash2 K%s, %s draft KV, from %s@%s\n' \
     "${DFLASH_TOKENS}" "${DFLASH_KV_CACHE_DTYPE}" \
     "${DFLASH_MODEL_ID}" "${DFLASH_MODEL_REVISION}"
+  if [[ "${USE_REPLAYSSM}" == 1 ]]; then
+    printf 'State rollback: compact KDA ReplaySSM (buffer %s)\n' \
+      "${REPLAYSSM_BUFFER_LEN}"
+  else
+    printf 'State rollback: baseline full-state rollback\n'
+  fi
 elif [[ "${SPECULATIVE_METHOD}" == mtp ]]; then
   if [[ "${USE_REPLAYSSM}" == 1 ]]; then
     printf 'MTP: %s tokens with compact KDA ReplaySSM (buffer %s)\n' \

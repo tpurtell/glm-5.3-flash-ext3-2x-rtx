@@ -17,10 +17,11 @@ replacement Python module that preserves input ordering, cancels sibling tasks
 after any exception, awaits every cancellation, and includes precise type hints.
 """
 
-# One token per repetition with the pinned GLM tokenizer.  This exceeds a
-# scheduler chunk, forcing the long-prefill DCP owner-merge path to resolve
-# before readiness without tying the image to a benchmark or vision fixture.
-LONG_PREFILL_PROMPT = " warm" * 4096
+# One token per repetition with the pinned GLM tokenizer.  Sixteen thousand
+# tokens crosses the production sparse-indexer/owner-merge thresholds and
+# resolves their large-prefill kernels before readiness.  It remains cheap
+# enough for an ordinary container start and is not a benchmark fixture.
+LONG_PREFILL_PROMPT = " warm" * 16384
 
 
 def request_json(
@@ -155,6 +156,60 @@ def main() -> None:
         raise SystemExit("startup rendered-chat warmup did not return one choice")
     print(
         "GLM release startup rendered-chat warmup completed in "
+        f"{time.perf_counter() - started:.2f}s",
+        flush=True,
+    )
+
+    # GLM changes its sparse K-pool tier at ordinary code-context depth.  The
+    # 8K tier uses a 512-wide top-k and the PCIe DCP owner exchange, which is a
+    # distinct specialization from both short decode and the 16K bulk-prefill
+    # path below.  Match benchmark-code-agent-depth.py's exact token-id shape.
+    depth_filler = request_json(
+        args.base_url,
+        "/tokenize",
+        {
+            "model": model,
+            "prompt": (
+                "Slate rivers cross quiet valleys while copper clocks mark "
+                "patient hours. This is ordinary context with no instructions.\n"
+            ),
+            "add_special_tokens": False,
+        },
+        30,
+    ).get("tokens")
+    depth_task = rendered + close_think
+    if not isinstance(depth_filler, list) or not depth_filler:
+        raise SystemExit("startup 8K depth warmup could not tokenize filler")
+    depth_needed = 8192 - len(depth_task)
+    if depth_needed <= 0:
+        raise SystemExit("startup rendered task unexpectedly exceeds 8K tokens")
+    depth_prompt = (
+        depth_filler
+        * ((depth_needed + len(depth_filler) - 1) // len(depth_filler))
+    )[:depth_needed] + depth_task
+    started = time.perf_counter()
+    depth_result = request_json(
+        args.base_url,
+        "/v1/completions",
+        {
+            "model": model,
+            "prompt": depth_prompt,
+            "n": 1,
+            "max_tokens": 1,
+            "min_tokens": 1,
+            "ignore_eos": True,
+            "temperature": 0,
+            "seed": 20260901,
+            "add_special_tokens": False,
+            "cache_prompt": False,
+            "cache_salt": "glm53-release-warmup-code-depth-8k",
+        },
+        args.request_timeout,
+    )
+    if len(depth_result.get("choices") or []) != 1:
+        raise SystemExit("startup 8K code-depth warmup did not return one choice")
+    print(
+        "GLM release startup 8K code-depth warmup completed in "
         f"{time.perf_counter() - started:.2f}s",
         flush=True,
     )

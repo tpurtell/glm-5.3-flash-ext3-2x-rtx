@@ -1,0 +1,36 @@
+{
+  "schema": "glm53-prefix-replay.v1",
+  "passed": true,
+  "target_prompt_tokens": 128000,
+  "cache_salt": "67b7e9b500d64346a725cb80060f1733",
+  "prefix_cache_hits_before": 617984.0,
+  "prefix_cache_hits_after": 731136.0,
+  "prefix_cache_hit_delta": 113152.0,
+  "passes": [
+    {
+      "pass": 1,
+      "passed": true,
+      "request_seconds": 30.3834313940024,
+      "usage": {
+        "prompt_tokens": 128000,
+        "total_tokens": 128064,
+        "completion_tokens": 64,
+        "prompt_tokens_details": null
+      },
+      "output": " SPARK-B12X-5.3-128K-7429\nExplanation: The code appears in the first line of the prompt, before the distractor text begins. The distractor text is repetitive filler that contains no codes. The correct answer is the code from the first line.</think>SPARK-B"
+    },
+    {
+      "pass": 2,
+      "passed": true,
+      "request_seconds": 3.7340562180033885,
+      "usage": {
+        "prompt_tokens": 128000,
+        "total_tokens": 128017,
+        "completion_tokens": 17,
+        "prompt_tokens_details": null
+      },
+      "output": " SPARK-B12X-5.3-128K-7429"
+    }
+  ],
+  "high_recycled_page_rationale": "The identical second pass exercises the production allocator/cache replay path that previously exposed 32-bit pool-offset overflow; focused B12x tests separately force page IDs past the exact 2^31/stride boundary."
+}

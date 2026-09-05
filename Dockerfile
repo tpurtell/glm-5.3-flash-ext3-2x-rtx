@@ -9,7 +9,7 @@ FROM ${EXL3_SOURCE_IMAGE} AS exl3_source
 FROM ${GLM_BASE_IMAGE}
 
 ARG B12X_REPOSITORY=https://github.com/tpurtell/sparkinfer-glmrt
-ARG B12X_COMMIT=c90cd0080274b90da4721f8ab7536bca29cae720
+ARG B12X_COMMIT=fe054789069579e19ae5ec21f880b397bcf6575b
 ARG DFLASH2_VLLM_COMMIT=b389ac29465b33f9e9c534df221ea3c129e9793f
 
 SHELL ["/bin/bash", "-c"]
@@ -61,6 +61,7 @@ COPY patches/port-exl3-glm53.py /tmp/port-exl3-glm53.py
 COPY patches/port-exl3-ep-glm53.py /tmp/port-exl3-ep-glm53.py
 COPY patches/port-exl3-mtp-glm53.py /tmp/port-exl3-mtp-glm53.py
 COPY patches/port-exl3-projection-mixed-glm53.py /tmp/port-exl3-projection-mixed-glm53.py
+COPY patches/port-exl3-prepared-dtype.py /tmp/port-exl3-prepared-dtype.py
 COPY patches/port-b12x-glm53.py /tmp/port-b12x-glm53.py
 COPY patches/port-b12x-kpool-glm53.py /tmp/port-b12x-kpool-glm53.py
 COPY patches/b12x_dcp_topk.py \
@@ -72,6 +73,9 @@ COPY patches/port-b12x-glm-h64-query.py /tmp/port-b12x-glm-h64-query.py
 COPY patches/port-b12x-mhc-glm53.py /tmp/port-b12x-mhc-glm53.py
 COPY patches/port-glm53-mhc-warmup.py /tmp/port-glm53-mhc-warmup.py
 COPY patches/port-glm53-sm12-stability.py /tmp/port-glm53-sm12-stability.py
+COPY patches/port-b12x-glm-index-width.py /tmp/port-b12x-glm-index-width.py
+COPY patches/port-glm-sparse-memory.py /tmp/port-glm-sparse-memory.py
+COPY patches/port-glm-prefill-jit.py /tmp/port-glm-prefill-jit.py
 COPY patches/b12x_pcie_all_reduce.py \
     /usr/local/lib/python3.12/dist-packages/vllm/distributed/device_communicators/b12x_pcie_all_reduce.py
 COPY patches/port-b12x-pcie-glm53.py /tmp/port-b12x-pcie-glm53.py
@@ -81,6 +85,7 @@ COPY patches/port-b12x-dcp-a2a-glm53.py /tmp/port-b12x-dcp-a2a-glm53.py
 COPY patches/vllm-replayssm-spec.patch /tmp/vllm-replayssm-spec.patch
 COPY patches/vllm-dynamic-sd-cudagraph.patch /tmp/vllm-dynamic-sd-cudagraph.patch
 COPY patches/port-replayssm-glm53.py /tmp/port-replayssm-glm53.py
+COPY patches/port-glm-replayssm-conv-window.py /tmp/port-glm-replayssm-conv-window.py
 COPY patches/port-glm53-mtp-prefix-cache.py /tmp/port-glm53-mtp-prefix-cache.py
 COPY patches/adaptive_mtp.py \
     /usr/local/lib/python3.12/dist-packages/vllm/v1/spec_decode/dynamic/adaptive_mtp.py
@@ -96,6 +101,8 @@ RUN python3 /tmp/port-exl3-glm53.py \
  && python3 /tmp/port-exl3-mtp-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-exl3-projection-mixed-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-exl3-prepared-dtype.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
@@ -115,6 +122,12 @@ RUN python3 /tmp/port-exl3-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-glm53-sm12-stability.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-b12x-glm-index-width.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-glm-sparse-memory.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-glm-prefill-jit.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-pcie-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-b12x-dcp-a2a-glm53.py \
@@ -128,6 +141,8 @@ RUN cd /usr/local/lib/python3.12/dist-packages \
  && patch --batch --forward -p1 < /tmp/vllm-replayssm-spec.patch \
  && patch --batch --forward -p1 < /tmp/vllm-dynamic-sd-cudagraph.patch \
  && python3 /tmp/port-replayssm-glm53.py \
+    /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-glm-replayssm-conv-window.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-glm53-mtp-prefix-cache.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
@@ -188,6 +203,9 @@ import torch
 import vllm
 from b12x.moe import ep_moe, fused_moe
 from b12x.moe.fused_moe._impl import _projection_mixed_route_map
+from b12x.moe._shared.kernels.w4a16.mixed_trellis import (
+    build_projection_tiered_maps,
+)
 from b12x.moe.fused_moe.trellis import ProjectionTrellisTierWeights
 from b12x.attention import dsa_indexer, sparse_mla
 from b12x.gemm import mla_query_projection
@@ -253,6 +271,10 @@ for stride_contract in (
 ):
     assert stride_contract in kda_replayssm_source
 assert "ReplaySSM prefill row count mismatch" in kda_replayssm_source
+glm_kda_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/models/glm5next/nvidia/kda.py"
+).read_text()
+assert "self.num_spec + 1" in glm_kda_source
 
 def entry(name: str, bits: int):
     return {
@@ -364,8 +386,44 @@ projection_caps = fused_moe.Caps(
     device="cpu",
     weight_plan=projection_plan,
     quant_mode="w4a16",
+    full_rotation_output_dtype=torch.bfloat16,
 )
 assert fused_moe.required_nbytes(projection_caps) > 0
+projection_scratch_plan = fused_moe.plan(projection_caps)
+assert (
+    projection_scratch_plan._core_workspace_plan.full_rotation_output_dtype
+    == torch.bfloat16
+)
+glm_projection_plan = fused_moe.plan_weights(
+    quant_modes="w4a16",
+    source_format="exl3_trellis_mcg",
+    activation="silu",
+    params_dtype=torch.bfloat16,
+    num_experts=288,
+    hidden_size=128,
+    intermediate_size=128,
+    w13_layout="trellis_t256_proj",
+    w4a16_layout="trellis_native",
+    trellis_bits=3,
+    trellis_codebook="mcg",
+    trellis_rate_granularity="per_expert_projection",
+)
+assert fused_moe.required_nbytes(fused_moe.Caps(
+    max_tokens=1,
+    num_topk=8,
+    route_num_experts=288,
+    device="cpu",
+    weight_plan=glm_projection_plan,
+    quant_mode="w4a16",
+)) > 0
+_, glm_descriptor = build_projection_tiered_maps(
+    [0] * 288,
+    [0] * 288,
+    [0] * 288,
+    tier_slots=(288, 0),
+    device=torch.device("cpu"),
+)
+assert glm_descriptor.view(3, 288)[:, 287].tolist() == [287, 287, 287]
 precomposed_map = torch.tensor(
     list(range(144)) + [-1] * 144, dtype=torch.int32
 )
@@ -379,7 +437,7 @@ trellis_plan = fused_moe.plan_weights(
     quant_modes="w4a16",
     source_format="b12x_trellis",
     activation="silu",
-    params_dtype=torch.bfloat16,
+    params_dtype=torch.float16,
     num_experts=2,
     hidden_size=128,
     intermediate_size=128,
@@ -389,6 +447,13 @@ trellis_plan = fused_moe.plan_weights(
 )
 assert trellis_plan.source_format == "b12x_trellis"
 assert trellis_plan.trellis_codebook == "mcg"
+assert ep_moe.Caps(
+    max_tokens=1,
+    num_topk=1,
+    global_num_experts=2,
+    device="cpu",
+    weight_plan=trellis_plan,
+).full_rotation
 assert callable(ep_moe.prepare_expert_map)
 assert callable(ep_moe.plan)
 assert callable(ep_moe.bind)
@@ -420,6 +485,13 @@ exl3_source = Path(
     "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
     "quantization/exl3.py"
 ).read_text()
+uniform_start = exl3_source.index("    def _prepare_rank_sliced_weights(")
+uniform_end = exl3_source.index(
+    "    def get_fused_moe_quant_config(", uniform_start
+)
+assert exl3_source[uniform_start:uniform_end].count(
+    "params_dtype=torch.float16,"
+) == 2
 assert "local_expert_id = param.map_global_expert_id(expert_id)" in exl3_source
 assert "if local_expert_id < 0:" in exl3_source
 assert "layer.exl3_prepared_ep_map" in exl3_source
@@ -450,6 +522,21 @@ assert callable(DcpTopKOwnerExchange.from_exchange_group)
 assert callable(PCIeDCPA2APool.from_exchange_group)
 assert B12xPcieAllReduce.backend_name(None) == "B12X_PCIE_ONESHOT"
 assert B12xMLASparseBackend.get_supported_head_sizes() == [512, 576]
+sparse_backend_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/"
+    "b12x_mla_sparse.py"
+).read_text()
+assert "int(layer.impl.topk_tokens)" in sparse_backend_source
+indexer_backend_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/"
+    "indexer.py"
+).read_text()
+assert "scheduler_config.max_num_seqs" in indexer_backend_source
+mla_attention_source = Path(
+    "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/"
+    "attention/mla_attention.py"
+).read_text()
+assert 'self.attn_backend.get_name() == "B12X_MLA_SPARSE"' in mla_attention_source
 assert CacheConfig(cache_dtype="nvfp4_ds_mla").cache_dtype == "nvfp4_ds_mla"
 assert CacheConfig(cache_dtype="fp8_ds_mla").cache_dtype == "fp8_ds_mla"
 assert STR_DTYPE_TO_TORCH_DTYPE["nvfp4_ds_mla"] is torch.uint8

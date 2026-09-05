@@ -1,0 +1,33 @@
+{
+  "schema": "glm53-release-startup-jit-audit.v1",
+  "container": "glm53-flash-exl3-b12x-vllm",
+  "image": "glm53-flash-exl3-b12x-vllm:k325-runtime-dev11",
+  "image_id": "sha256:849830263825ab89bcedd70027b45d7290edfa8708053d2a74139bf8315b7568",
+  "container_state": "running",
+  "health_status_at_audit": "healthy",
+  "container_stopped_after_test": false,
+  "ready_marker": "2026-09-05T20:15:00.897538876Z GLM release startup warmup complete; container is ready.",
+  "pre_ready_jit_count": 14,
+  "pre_ready_jit_kernels": [
+    "StableTopKFromGatheredCandidatesKernel",
+    "_compute_local_logits_stats_kernel",
+    "_gather_dcp_topk_scores_and_globalize_kernel",
+    "_gumbel_sample_kernel",
+    "_kpool_tail_seed_kernel",
+    "_pack_dcp_topk_candidates_triton_kernel",
+    "_pack_topk_routes_post_prefix_kernel",
+    "_pack_topk_routes_small_prefix_kernel",
+    "_prepare_dflash_inputs_kernel",
+    "_rejection_kernel",
+    "_resample_kernel",
+    "_topk_topp_kernel",
+    "_w4a16_route_count_kernel",
+    "_w4a16_route_prefix_from_counts_kernel"
+  ],
+  "post_ready_request_count": 85,
+  "post_ready_health_200_count": 9,
+  "post_ready_http_404_count": 0,
+  "post_ready_jit_count": 0,
+  "post_ready_jit_kernels": [],
+  "passed": true
+}

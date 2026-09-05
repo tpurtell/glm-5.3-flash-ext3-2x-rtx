@@ -24,8 +24,12 @@ resolve_glm53_model_profile() {
     return
   fi
 
-  MODEL_PROFILE="${MODEL_PROFILE:-k3}"
+  MODEL_PROFILE="${MODEL_PROFILE:-k325}"
   case "${MODEL_PROFILE}" in
+    k325)
+      MODEL_ID=wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1
+      MODEL_REVISION=701cd7456c13d87bf0147ad946f828a999afb59c
+      ;;
     k3)
       MODEL_ID=wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1
       MODEL_REVISION=1e4abd26e4e1e8d58d81fbd557d6c4099352fe63
@@ -39,7 +43,7 @@ resolve_glm53_model_profile() {
       return 2
       ;;
     *)
-      echo "MODEL_PROFILE must be k3, k4, or custom; got: ${MODEL_PROFILE}" >&2
+      echo "MODEL_PROFILE must be k325, k3, k4, or custom; got: ${MODEL_PROFILE}" >&2
       return 2
       ;;
   esac

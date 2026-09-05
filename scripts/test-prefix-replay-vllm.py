@@ -38,7 +38,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8001")
     parser.add_argument(
-        "--model", default="wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1"
+        "--model", default="wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1"
     )
     parser.add_argument("--tokens", type=int, default=128_000)
     parser.add_argument("--timeout", type=float, default=7200)

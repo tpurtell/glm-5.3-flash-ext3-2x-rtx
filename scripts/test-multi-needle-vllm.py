@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 
 
-DEFAULT_MODEL = "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3-v1"
+DEFAULT_MODEL = "wrldsuksgo2mars/GLM-5.3-Flash-EXL3-K3.25-v1"
 FACTS = (
     (0.05, "CINDER-05", "azurite-4831"),
     (0.25, "JUNIPER-25", "topaz-7614"),
