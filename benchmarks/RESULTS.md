@@ -108,12 +108,58 @@ total decode tokens divided by total pure-decode time.
 The exact JSON object is accepted whether bare or wrapped in a `json` fence;
 that is presentation, not malformed structured content.
 
-## Full 69-case tool comparison
+## Full tool-call comparison: 88 cases, including Hard Mode
 
+The refreshed run on **2026-09-06 (Asia/Taipei)** uses
+`tool-eval-bench 2.6.1.dev45+gcf54b4bfe` at commit
+`cf54b4bfe705f12f71e8866f10730572497c8105`, with `--hardmode` to include
+**all 88 available cases: TC-01 through TC-88**. Both models use the public
+v0.7.0 image with identical DFlash2 K5, FP8 MLA, TP2/EP2/DCP2, baseline
+rollback, and 400 W/GPU settings. Thinking is enabled, temperature is 0,
+evaluation parallelism is 8, max turns is 8, timeout is 900 seconds, and the
+reference date remains `2026-09-04`.
+
+| Scope | Uniform K3 | K3.25 |
+|---|---:|---:|
+| Standard 69 cases | 124/138 (**89.9%**) | 127/138 (**92.0%**) |
+| Hard Mode, 19 cases | 32/38 (**84.2%**) | 37/38 (**97.4%**) |
+| **All 88 cases** | **156/176 (88.6%)** | **164/176 (93.2%)** |
+
+The benchmark rounds the combined scores to **89 and 93**. K3 recorded
+73 pass / 10 partial / 5 fail; K3.25 recorded 78 pass / 8 partial / 2 fail.
+All 88 cases were graded for each model, with no excluded infrastructure
+failures and zero post-ready JIT warnings. This is **one run per model**;
+the two subset rows are extracted from those runs, not separate trials.
+
+K3.25 scored higher on TC-40/50/53/58/60/80/85/88, lower on TC-21/61, and
+matched the other 78 verdicts. Both failed TC-43 (empty required search
+parameter) and TC-51 (invalid, duplicate, or unintended lunch notification).
+On Hard Mode, K3.25 passed 18/19 and received partial credit on TC-85;
+K3 passed 16/19 and failed TC-80/85/88. Both passed the new concurrency and
+pagination cases TC-86/87; K3.25 also passed TC-88's reasoning continuity
+test, where K3's first two replies contained tool calls instead of the
+required 20-digit answers.
+
+Full evidence: [per-case comparison](v0.7.0-k325/tool-eval-20260906/comparison.json),
+[K3 prompts and outputs](v0.7.0-k325/tool-eval-20260906/k3-runs/2026/09/2026-09-05T22-30-44.312928Z_ee526f0c.md),
+[K3.25 prompts and outputs](v0.7.0-k325/tool-eval-20260906/k325-runs/2026/09/2026-09-05T22-19-14.605024Z_243726eb.md),
+and [all 19 Hard Mode verdicts plus reproduction instructions](v0.7.0-k325/tool-eval-20260906/RUN.md).
+
+The evaluator update includes fixes to date handling, tool-call ordering,
+clarification/refusal scoring, and schema compliance, plus reasoning replay
+changes. Differences from the older scores therefore do not isolate a
+change in model quality. API-assisted cases such as `tool_choice` and
+structured output use the same vLLM features for both targets; comparison
+with hosted providers requires matching that API support.
+
+### Original release run: 69 cases
+
+The original comparison used `tool-eval-bench 2.3.2.dev3+g5df1e9e0c`.
 Both targets ran in the final image with thinking enabled, temperature 0, and
 parallelism 8. The benchmark saw no API/runtime errors. K3 scored 88 with
 57 pass / 7 partial / 5 fail; K3.25 scored 86 with 55 pass / 8 partial / 6
-fail. K3.25 improved TC-33, regressed TC-40/68/69, and matched the other 65
+fail: **121/138 versus 118/138 raw points**. K3.25 improved TC-33,
+regressed TC-40/68/69, and matched the other 65
 cases. Category deltas were +2 points in Safety & Boundaries, −2 in Toolset
 Scale, and −3 in Structured Output; all other categories matched. The
 [complete per-case comparison](v0.7.0-k325/tool-eval/comparison.json) and both
@@ -162,7 +208,8 @@ a requested 140–170. It is therefore a transparent capacity/C16 option via
 
 Machine-readable evidence is under [`v0.7.0-k325/`](v0.7.0-k325/):
 `release-default/` holds the complete headline suite, `k3-control/` the
-same-image comparison, `tool-eval/` all 69 cases, `b12x-gpu/` the kernel gate,
+same-image comparison, `tool-eval/` the original 69-case run,
+`tool-eval-20260906/` the updated 88-case run, `b12x-gpu/` the kernel gate,
 and `replayssm-qualification/` plus `replayssm-option/` the matched rollback
 evidence. Historical NVFP4, MTP, adaptive-MTP, and K3 DFlash measurements were
 not rerun or relabeled.

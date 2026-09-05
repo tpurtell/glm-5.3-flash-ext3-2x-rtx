@@ -243,6 +243,16 @@ Raw v0.7 machine-readable artifacts live under `benchmarks/v0.7.0-k325/`;
 attribution methods. The v0.6 evidence remains intact in its historical
 directory.
 
+The 2026-09-06 tool-eval refresh additionally exercises all 88 standard and
+Hard Mode cases using evaluator commit
+`cf54b4bfe705f12f71e8866f10730572497c8105` (`2.6.1.dev45+gcf54b4bfe`).
+Both targets run in the public v0.7.0 container with matching serving flags
+and 400 W/GPU limits, default thinking, and evaluation parallelism 8.
+All cases are graded; K3 scores 156/176 and K3.25 scores 164/176. The
+original 69-case receipts remain intact, and the new runs, environment
+captures, and comparison live under
+[`tool-eval-20260906/`](benchmarks/v0.7.0-k325/tool-eval-20260906/).
+
 ## Upstream and nearby references
 
 - https://github.com/vllm-project/vllm/pull/52816
