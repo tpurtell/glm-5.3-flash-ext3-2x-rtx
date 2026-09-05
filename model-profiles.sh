@@ -48,3 +48,16 @@ resolve_glm53_model_profile() {
       ;;
   esac
 }
+
+# Brandon's larger K4 checkpoints need a smaller default request limit with
+# DFlash2/FP8 on two 96 GiB GPUs. Match the resolved ID so explicit checkpoint
+# overrides, including the original EXL3 repository, get the same default.
+resolve_glm53_context_limit() {
+  local default_max_model_len=1048576
+  case "${MODEL_ID:-}" in
+    brandonmusic/GLM-5.3-Flash-tr3-4bpw|brandonmusic/GLM-5.3-Flash-EXL3-4bpw)
+      default_max_model_len=262144
+      ;;
+  esac
+  MAX_MODEL_LEN="${MAX_MODEL_LEN:-${default_max_model_len}}"
+}

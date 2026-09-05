@@ -66,7 +66,7 @@ IMAGE=glm53-dflash2:local ./start.sh
 | `KV_CACHE_PROFILE` | `fp8` | Quality-leaning FP8 target MLA cache |
 | `ENABLE_EXPERT_PARALLEL` | `1` | Use the qualified TP2+EP2 B12x expert path |
 | `DECODE_CONTEXT_PARALLEL_SIZE` | `2` | Shard target long-context cache and attention work |
-| `MAX_MODEL_LEN` | `1048576` | GLM-5.3 Flash architecture limit; cold 1M qualified |
+| `MAX_MODEL_LEN` | `1048576`; K4: `262144` | K3/K3.25 retain the 1M limit; Brandon's larger K4 defaults to 256K |
 | `MAX_NUM_SEQS` | `16` | Qualified C16 decode fan-out |
 | `MAX_NUM_BATCHED_TOKENS` | `2048` | Qualified prefill chunk size |
 | `LIMIT_MM_PER_PROMPT` | `{"image":16}` | Enable and enforce the 16-image contract |
@@ -100,6 +100,15 @@ USE_REPLAYSSM=1 ./start.sh              # compact rollback: more cache/C16, less
 revision. For another checkpoint, set `MODEL_ID` and `MODEL_REVISION` together;
 the launcher rejects half-overrides so it cannot combine one model with
 another model's commit.
+
+Brandon's K4 defaults to **262,144 tokens**, including explicit overrides
+using either his `GLM-5.3-Flash-tr3-4bpw` or original
+`GLM-5.3-Flash-EXL3-4bpw` repository. Set `MAX_MODEL_LEN` explicitly to change
+that limit. The original K4 checkpoint loaded on v0.7.0 but vLLM rejected
+the 1M default: it needed 5.97 GiB of KV memory per GPU and had 3.56 GiB
+available at 0.95 utilization. The 256K default is a capacity-based launcher
+setting, not a newly qualified 256K needle result. K3/K3.25 defaults are
+unchanged.
 
 Current vLLM DFlash2 executes one fixed K for the active fused batch. It does not yet expose request-local, within-request K adaptation like this recipe's alternate MTP controller. DFlash acceptance is very workload-dependent: K5 won the code-agent balance, while K3 won the C16 tuning point. A real adaptive DFlash policy needs to control the block-diffusion proposal/selector inside a request; swapping profiles only between requests would miss the point.
 
