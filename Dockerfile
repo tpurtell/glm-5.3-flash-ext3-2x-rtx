@@ -94,6 +94,7 @@ COPY patches/port-dflash2-glm53.py /tmp/port-dflash2-glm53.py
 COPY patches/port-dflash2-glm-eagle3.py /tmp/port-dflash2-glm-eagle3.py
 COPY patches/port-dflash2-glm-kv.py /tmp/port-dflash2-glm-kv.py
 COPY patches/port-dflash2-replicated-dcp.py /tmp/port-dflash2-replicated-dcp.py
+COPY patches/port-dflash2-boundary-prefix-cache.py /tmp/port-dflash2-boundary-prefix-cache.py
 RUN python3 /tmp/port-exl3-glm53.py \
     /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-exl3-ep-glm53.py \
@@ -173,6 +174,8 @@ RUN python3 /tmp/port-dflash2-glm53.py \
  && python3 /tmp/port-dflash2-glm-kv.py \
       /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 /tmp/port-dflash2-replicated-dcp.py \
+      /usr/local/lib/python3.12/dist-packages/vllm \
+ && python3 /tmp/port-dflash2-boundary-prefix-cache.py \
       /usr/local/lib/python3.12/dist-packages/vllm \
  && python3 -m compileall -q /usr/local/lib/python3.12/dist-packages/vllm
 

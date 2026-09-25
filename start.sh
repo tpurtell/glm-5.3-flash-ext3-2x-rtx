@@ -41,6 +41,9 @@ DFLASH_TOKENS="${DFLASH_TOKENS:-5}"
 # DFlash2 uses ordinary non-causal attention, not the target model's MLA
 # cache.  Keep its tiny draft cache in BF16 when the target cache is FP8 MLA.
 DFLASH_KV_CACHE_DTYPE="${DFLASH_KV_CACHE_DTYPE:-bfloat16}"
+# Opt-in: let DFlash2 prefix-cache hits land on the aligned boundary instead
+# of dropping one block per group (see patches/port-dflash2-boundary-prefix-cache.py).
+GLM53_DFLASH_BOUNDARY_LOOKUP="${GLM53_DFLASH_BOUNDARY_LOOKUP:-0}"
 MTP_TOKENS="${MTP_TOKENS:-5}"
 ADAPTIVE_MTP="${ADAPTIVE_MTP:-1}"
 ADAPTIVE_MTP_MIN_DEPTH="${ADAPTIVE_MTP_MIN_DEPTH:-1}"
@@ -129,6 +132,14 @@ case "${SPECULATIVE_METHOD}" in
     exit 2
     ;;
 esac
+if [[ "${GLM53_DFLASH_BOUNDARY_LOOKUP}" != 0 && "${GLM53_DFLASH_BOUNDARY_LOOKUP}" != 1 ]]; then
+  echo "GLM53_DFLASH_BOUNDARY_LOOKUP must be 0 or 1; got: ${GLM53_DFLASH_BOUNDARY_LOOKUP}" >&2
+  exit 2
+fi
+if [[ "${GLM53_DFLASH_BOUNDARY_LOOKUP}" == 1 && "${SPECULATIVE_METHOD}" != dflash2 ]]; then
+  echo "GLM53_DFLASH_BOUNDARY_LOOKUP=1 requires SPECULATIVE_METHOD=dflash2" >&2
+  exit 2
+fi
 if [[ ! "${DFLASH_TOKENS}" =~ ^[1-7]$ ]]; then
   echo "DFLASH_TOKENS must be between 1 and the checkpoint maximum of 7; got: ${DFLASH_TOKENS}" >&2
   exit 2
@@ -421,6 +432,7 @@ docker run --detach \
   --env TORCH_SHOW_CPP_STACKTRACES="${TORCH_SHOW_CPP_STACKTRACES:-0}" \
   --env VLLM_ENGINE_READY_TIMEOUT_S="${VLLM_ENGINE_READY_TIMEOUT_S:-3600}" \
   --env GLM53_STARTUP_WARMUP="${GLM53_STARTUP_WARMUP}" \
+  --env GLM53_DFLASH_BOUNDARY_LOOKUP="${GLM53_DFLASH_BOUNDARY_LOOKUP}" \
   --env GLM53_REPLAYSSM_ACTIVE="${REPLAYSSM_ACTIVE}" \
   --env GLM53_STARTUP_WARMUP_TIMEOUT_S="${GLM53_STARTUP_WARMUP_TIMEOUT_S:-1800}" \
   --env VLLM_ADAPTIVE_MTP="${RUNTIME_ADAPTIVE_MTP}" \

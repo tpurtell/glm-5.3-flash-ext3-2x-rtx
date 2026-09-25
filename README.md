@@ -105,7 +105,19 @@ SPECULATIVE_METHOD=mtp ./start.sh       # request-local adaptive MTP K1…K5
 LANGUAGE_MODEL_ONLY=1 ./start.sh        # disable the vision path
 KV_CACHE_PROFILE=nvfp4 ./start.sh       # optional lower-precision target cache
 USE_REPLAYSSM=1 ./start.sh              # compact rollback: more cache/C16, less C1 here
+GLM53_DFLASH_BOUNDARY_LOOKUP=1 ./start.sh  # opt-in: DFlash2 prefix hits on the aligned boundary
 ```
+
+`GLM53_DFLASH_BOUNDARY_LOOKUP=1` (DFlash2 only, default off) stops every KV
+group from dropping its last matching block on a prefix-cache hit. Without it,
+the MTP-only group scoping does not recognize the DFlash drafter, vLLM's
+all-group fallback marks every group as EAGLE, and each request recomputes
+about two 3,584-token blocks of an already-cached prefix. On a downstream
+TP2/DCP2 profile, repeated 31K and 62K prompts reused 28,672 and 57,344
+tokens instead of 21,504 and 50,176; cached TTFT fell from 2.37 s to 0.93 s
+and from 2.72 s to 1.35 s. Hits still land on the DCP2 grid (7,168 tokens).
+Greedy outputs stayed correct, and draft acceptance did not drop on cached
+requests.
 
 `MODEL_PROFILE=k3` and `MODEL_PROFILE=k4` pin both the repository and its
 revision. For another checkpoint, set `MODEL_ID` and `MODEL_REVISION` together;
