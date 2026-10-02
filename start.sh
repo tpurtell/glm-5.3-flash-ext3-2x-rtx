@@ -544,6 +544,7 @@ docker run --detach \
   --enable-auto-tool-choice \
   --tool-call-parser glm47 \
   --reasoning-parser glm45 \
+  --enable-prompt-tokens-details \
   "${CHAT_TEMPLATE_ARGS[@]}" \
   "${PROFILER_SERVE_ARGS[@]}" \
   ${EXTRA_SERVE_ARGS:-}
